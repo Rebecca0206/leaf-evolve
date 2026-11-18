@@ -6,8 +6,6 @@ const S = (o)=>o;
 const SPECIES = {
  meerkat:{n:'Meerkat',art:'meerkat',mass:0.75,len:0.3,spd:32,bite:20,arm:2,hab:'desert',sp:'sprint',ai:'kiter',fact:'Meerkats live in tight family mobs and take turns standing guard.'},
  gila:{n:'Gila Monster',art:'gila',mass:0.7,len:0.45,spd:5,bite:60,arm:4,hab:'desert',sp:'venom',ai:'ambush',fact:'One of the few venomous lizards. It is slow, but its jaws hold on tight.'},
- wolfpup:{n:'Wolf Pup',art:'wolf',mass:10,len:0.75,spd:35,bite:500,arm:1,hab:'forest',sp:'sprint',ai:'pack',fact:'Wolf pups learn hunting by play-fighting inside the pack.',scale:0.62},
- youngcroc:{n:'Young Croc',art:'croc',mass:12,len:1.5,spd:14,bite:1800,arm:5,hab:'wetland',sp:'roll',ai:'grappler',fact:'Baby crocs already have a powerful snap and tough armored scales.',scale:0.5},
  honey_badger:{n:'Honey Badger',art:'honey_badger',mass:12,len:0.75,spd:30,bite:400,arm:6,hab:'savanna',sp:'frenzy',ai:'berserk',fact:'Its loose, thick skin lets it twist around and bite even when gripped.'},
  fox:{n:'Red Fox',art:'fox',mass:6,len:0.9,spd:50,bite:300,arm:1,hab:'forest',sp:'pounce',ai:'kiter',fact:'Foxes pounce from above to catch prey hidden in grass or snow.'},
  porcupine:{n:'Porcupine',art:'porcupine',mass:10,len:0.8,spd:6,bite:200,arm:7,hab:'forest',sp:'quills',ai:'defender',fact:'Up to 30,000 quills; it backs into trouble and never charges.'},
@@ -18,8 +16,6 @@ const SPECIES = {
  kangaroo:{n:'Red Kangaroo',art:'kangaroo',mass:70,len:1.5,spd:56,bite:2500,arm:1,hab:'desert',sp:'kick',ai:'kiter',fact:'Boxes with its arms and kicks hard with both hind legs, balancing on its tail.'},
  komodo:{n:'Komodo Dragon',art:'komodo',mass:70,len:2.5,spd:20,bite:600,arm:5,hab:'jungle',sp:'venom',ai:'ambush',fact:'The largest lizard: venom glands in its jaw, plus serrated teeth.'},
  wolf:{n:'Grey Wolf',art:'wolf',mass:40,len:1.4,spd:56,bite:1500,arm:1.5,hab:'forest',sp:'pounce',ai:'pack',fact:'Wolves circle, feint and test opponents before committing.'},
- alphawolf:{n:'Alpha Wolf',art:'wolf',mass:55,len:1.6,spd:56,bite:1800,arm:2,hab:'forest',sp:'pounce',ai:'pack',fact:'The breeding male leads the pack; big, strong and experienced.',scale:1.1},
- swiftwolf:{n:'Hunter Wolf',art:'wolf',mass:38,len:1.4,spd:64,bite:1400,arm:1,hab:'arctic',sp:'sprint',ai:'kiter',fact:'A lean pack runner that can chase prey for miles at 40+ km/h.',scale:0.98},
  cheetah:{n:'Cheetah',art:'cheetah',mass:50,len:1.3,spd:110,bite:1000,arm:1,hab:'savanna',sp:'sprint',ai:'kiter',fact:'The fastest land animal: 0 to 100 km/h in about 3 seconds, but it tires quickly.'},
  jaguar:{n:'Jaguar',art:'jaguar',mass:90,len:1.7,spd:80,bite:6900,arm:1.5,hab:'jungle',sp:'pounce',ai:'ambush',fact:'Strongest bite of the big cats; it can crack turtle shells.'},
  lion:{n:'Lion',art:'lion',mass:190,len:2.5,spd:80,bite:4200,arm:2,hab:'savanna',sp:'pounce',ai:'ambush',fact:'Lions sprint in short bursts and tire quickly.'},
@@ -33,19 +29,12 @@ const SPECIES = {
  anaconda:{n:'Green Anaconda',art:'green_anaconda',mass:100,len:5.0,spd:8,bite:1000,arm:2,hab:'wetland',sp:'constrict',ai:'ambush',fact:'A constrictor: it squeezes until its prey cannot breathe.'},
  cobra:{n:'King Cobra',art:'king_cobra',mass:6,len:3.0,spd:20,bite:100,arm:1,hab:'jungle',sp:'venom',ai:'striker',fact:'Can raise a third of its body off the ground; venom is strong enough to kill an elephant.'},
  croc:{n:'Nile Crocodile',art:'croc',mass:400,len:4.0,spd:17,bite:16000,arm:8,hab:'wetland',sp:'roll',ai:'grappler',fact:'Spins its whole body (the death roll) to tear off pieces of prey.'},
+ snow_leopard:{n:'Snow Leopard',art:'snow_leopard',mass:40,len:1.3,spd:64,bite:1800,arm:1.5,hab:'arctic',sp:'pounce',ai:'ambush',fact:'The ghost of the mountains: it can leap 15 m and its tail is as long as its body.'},
+ liger:{n:'Liger',art:'liger',mass:320,len:3.0,spd:65,bite:5000,arm:2.5,hab:'savanna',sp:'pounce',ai:'brawler',hybrid:1,fact:'Lion father, tigress mother. The largest cat, found only in captivity. Sizes are approximate.'},
+ tigon:{n:'Tigon',art:'tigon',mass:200,len:2.6,spd:70,bite:4300,arm:2,hab:'jungle',sp:'pounce',ai:'ambush',hybrid:1,fact:'Tiger father, lioness mother. Rarer and usually smaller than a liger.'},
  saltcroc:{n:'Saltwater Crocodile',art:'croc',mass:800,len:5.0,spd:17,bite:16400,arm:8,hab:'wetland',sp:'roll',ai:'grappler',fact:'Largest living reptile; bite force measured at 16,000+ newtons.',scale:1.15}
 };
-// Evolution lines. Each form: next = list of evolutions with DNA cost.
-const LINES = {
- mammal:{n:'Small Mammal',blurb:'From meerkat to big cat or bear. Choose your path.',start:'meerkat',
-  evo:{meerkat:[['honey_badger',120]],honey_badger:[['jaguar',300],['grizzly',300]],jaguar:[['lion',600],['tiger',600]],grizzly:[['polar',600]]}},
- canine:{n:'Wolf Pack',blurb:'Wolf pup to grey wolf, then lead the pack or run it down.',start:'wolfpup',
-  evo:{wolfpup:[['wolf',120]],wolf:[['alphawolf',300],['swiftwolf',300]],alphawolf:[],swiftwolf:[]}},
- reptile:{n:'Lizard to Dragon',blurb:'Gila monster to Komodo dragon, then constrictor or venom.',start:'gila',
-  evo:{gila:[['komodo',120]],komodo:[['anaconda',300],['cobra',300]]}},
- croc:{n:'Croc Line',blurb:'Young croc to Nile croc to saltwater giant. Death roll!',start:'youngcroc',
-  evo:{youngcroc:[['croc',120]],croc:[['saltcroc',300]]}}
-};
+const STAGES=[{n:'Cub',mass:.12,len:.55,bite:.3,spd:.65,lvl:1},{n:'Juvenile',mass:.45,len:.8,bite:.65,spd:.9,lvl:3},{n:'Adult',mass:1,len:1,bite:1,spd:1,lvl:5},{n:'Alpha',mass:1.15,len:1.06,bite:1.1,spd:1.03,lvl:8}];
 const HABITATS = {
  forest:{n:'Forest',c:'#2e4a2b'},savanna:{n:'Savanna',c:'#8a6a2c'},jungle:{n:'Jungle',c:'#1f4d2f'},
  arctic:{n:'Arctic',c:'#5a7a8a'},wetland:{n:'Wetland',c:'#3a5a4a'},desert:{n:'Desert',c:'#9a6a3a'}
@@ -65,5 +54,5 @@ const SPECIALS = {
  trample:{label:'CHARGE!',desc:'Elephant charge, huge knockback'},
  constrict:{label:'CONSTRICT',desc:'Coil and squeeze: grapple minigame'}
 };
-window.LE_DATA={SPECIES,LINES,HABITATS,SPECIALS};
+window.LE_DATA={SPECIES,STAGES,HABITATS,SPECIALS};
 })();

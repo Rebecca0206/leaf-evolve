@@ -5,18 +5,22 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 
 // ---- real numbers -> game stats (log-compressed so skill can beat size) ----
-function derive(id){
-  const s=D.SPECIES[id]; const lm=L10(1+s.mass);
-  const st={id,name:s.n,sp:s.sp,ai:s.ai,arm:s.arm};
-  st.maxhp=Math.round(70+30*lm);
-  st.dmg=4+1.8*(L10(s.bite)-1);                   // per bite
-  st.run=clamp(90+2*s.spd,100,260);
-  st.w=150*Math.pow(s.len,0.42)*(s.scale||1);   // drawn body width (world units)
+const STG=D.STAGES;
+function stageOf(lvl){let k=0;for(let i=0;i<STG.length;i++)if(lvl>=STG[i].lvl)k=i;return k}
+function derive(id,mod){
+  const sp0=D.SPECIES[id]; mod=mod||{}; const stage=mod.stage!=null?mod.stage:2; const g=STG[stage]; const lv=mod.lvl||g.lvl; const tr=mod.tr||{p:0,s:0,d:0};
+  const s=Object.assign({},sp0,{mass:sp0.mass*g.mass,len:sp0.len*g.len,bite:sp0.bite*g.bite,spd:sp0.spd*g.spd});
+  const lm=L10(1+s.mass), lvb=1+0.022*(lv-1);
+  const st={id,name:sp0.n,sp:sp0.sp,ai:sp0.ai,arm:s.arm,stage,lvl:lv};
+  st.maxhp=Math.round((70+30*lm)*lvb*(1+0.02*tr.d));
+  st.dmg=Math.max(2.8,(4+1.8*(L10(s.bite)-1)))*lvb*(1+0.02*tr.p);   // per bite
+  st.run=clamp(90+2*s.spd,100,260)*(1+0.012*tr.s);
+  st.w=150*Math.pow(s.len,0.42)*(sp0.scale||1);   // drawn body width (world units)
   st.sz=0.85+0.12*lm;                           // bigger = slower wind-ups
   st.regen=26-3*lm; st.cost=0.9+0.25*lm;        // bigger = tires faster
-  st.red=s.arm*0.035;                           // armor damage reduction
+  st.red=s.arm*0.035+0.004*tr.d;                 // armor damage reduction
   st.mass=s.mass;
-  st.power=Math.round(st.maxhp*st.dmg*(0.8+s.spd/200)*(1+st.red)/10);
+  st.power=Math.round(st.maxhp*st.dmg*(0.8+s.spd/200)*(1+st.red)/10); st.realMass=s.mass; st.realLen=s.len; st.realBite=s.bite; st.realSpd=s.spd;
   return st;
 }
 const SPEC_MOVES={
@@ -35,7 +39,7 @@ const CD={sp:2.2,charge:1.4};
 
 class Fighter{
   constructor(id,side,x,opt){
-    this.id=id; this.s=derive(id); this.side=side; this.x=x; this.face=side==='L'?1:-1;
+    this.id=id; this.uid=opt&&opt.uid; this.s=derive(id,opt&&opt.mod); this.fought=false; this.dead=false; this.benched=false; this.side=side; this.x=x; this.face=side==='L'?1:-1;
     this.hp=this.maxhp=this.s.maxhp; this.stam=100; this.st='intro'; this.t=0;
     this.kv=0; this.in={l:0,r:0,block:0}; this.buf=null; this.pressed=[];
     this.iframes=0; this.hitstun=0; this.winded=0; this.flash=0; this.cd={sp:0,charge:0,dodge:0};
@@ -47,12 +51,16 @@ class Fighter{
   get w(){return this.s.w}
 }
 class Match{
-  constructor(idA,idB,opt={}){
+  constructor(teamA,teamB,opt={}){
     this.rnd=mulberry(opt.seed!=null?opt.seed:(Math.random()*1e9|0));
-    this.A=new Fighter(idA,'L',-640,{skill:opt.skillA,ai:opt.aiA});
-    this.B=new Fighter(idB,'R',640,{skill:opt.skillB!=null?opt.skillB:0.5,ai:true});
+    const norm=(t)=>(Array.isArray(t)?t:[t]).map(e=>typeof e==='string'?{id:e}:e);
+    this.teamL=norm(teamA).map((e,i)=>new Fighter(e.id,'L',-640,{skill:opt.skillA,ai:opt.aiA,mod:e.mod,uid:e.uid}));
+    this.teamR=norm(teamB).map((e,i)=>new Fighter(e.id,'R',640,{skill:opt.skillB!=null?opt.skillB:0.5,ai:true,mod:e.mod,uid:e.uid}));
+    this.A=this.teamL[0]; this.B=this.teamR[0]; this.A.fought=this.B.fought=true;
+    this.teamL.slice(1).forEach(f=>{f.benched=true;f.x=-900}); this.teamR.slice(1).forEach(f=>{f.benched=true;f.x=900});
+    this.tagCd={L:0,R:0}; this.pending=null; this.outs=[];
     this.A.tx=-170; this.B.tx=170;
-    this.time=opt.limit||80; this.t=0; this.events=[]; this.g=null; this.over=false; this.winner=null; this.afterT=0;
+    this.time=opt.limit||(70+30*(Math.max(this.teamL.length,this.teamR.length)-1)); this.t=0; this.events=[]; this.g=null; this.over=false; this.winner=null; this.afterT=0;
     this.intro=opt.skipIntro?0:1.6; if(opt.skipIntro){this.A.x=this.A.tx;this.B.x=this.B.tx;this.A.st=this.B.st='idle'}
     this.hitstop=0; this.actId=0; this.how='ko';
     this.F=[this.A,this.B];
@@ -64,18 +72,35 @@ class Match{
   step(dt){
     this.t+=dt;
     if(this.hitstop>0){this.hitstop-=dt;return}
-    for(const f of this.F){ if(f.isAI&&!this.over&&f.st!=='intro') this.think(f,this.opp(f),dt); }
+    for(const f of this.F){ if(f.isAI&&!this.over&&f.st!=='intro'&&f.st!=='enter') this.think(f,this.opp(f),dt); }
+    for(const k in this.tagCd)this.tagCd[k]=Math.max(0,this.tagCd[k]-dt);
+    for(const f of [...this.teamL,...this.teamR]){ if(f.benched&&!f.dead)f.stam=Math.min(100,f.stam+14*dt) }
+    this.outs=this.outs.filter(o=>{o.t+=dt;o.f.x+=Math.sign(o.f.x||1)*300*dt;o.f.alpha=clamp(1-o.t/0.7,0,1);return o.t<0.7});
+    if(this.pending&&!this.over){ this.pending.t-=dt; if(this.pending.t<=0){ const side=this.pending.side; this.pending=null; const team=side==='L'?this.teamL:this.teamR; const cur=side==='L'?this.A:this.B; const nx=team.find(x=>!x.dead&&x!==cur); if(nx)this.swapIn(side,nx,true) } }
     if(this.intro>0){this.intro-=dt; for(const f of this.F){f.x+=(f.tx-f.x)*Math.min(1,dt*2.6); f.pose='idle'; f.alpha=clamp(1-(Math.abs(f.x)-300)/340,0.15,1)} if(this.intro<=0){for(const f of this.F){f.st='idle';f.alpha=1}this.ev({t:'bell'})} return}
     if(this.g) this.grapple(dt);
     for(const f of this.F) this.upd(f,this.opp(f),dt);
     // soft collision
-    const A=this.A,B=this.B; if(!this.g){const md=this.contact()*0.92, d=B.x-A.x; const dir=d>=0?1:-1; if(Math.abs(d)<md&&A.st!=='ko'&&B.st!=='ko'){const push=(md-Math.abs(d))/2; if(!(A.act&&A.act.dashing)) A.x-=dir*push; if(!(B.act&&B.act.dashing)) B.x+=dir*push; if(A.act&&A.act.dashing&&B.act&&B.act.dashing){A.x-=dir*push;B.x+=dir*push}}}
+    const A=this.A,B=this.B; if(!this.g){const md=this.contact()*0.92, d=B.x-A.x; const dir=d>=0?1:-1; if(Math.abs(d)<md&&A.st!=='ko'&&B.st!=='ko'&&A.st!=='enter'&&B.st!=='enter'){const push=(md-Math.abs(d))/2; if(!(A.act&&A.act.dashing)) A.x-=dir*push; if(!(B.act&&B.act.dashing)) B.x+=dir*push; if(A.act&&A.act.dashing&&B.act&&B.act.dashing){A.x-=dir*push;B.x+=dir*push}}}
     for(const f of this.F){f.x=clamp(f.x,-560,560); if(!this.g)f.pressed.length=0}
     if(!this.over){
       this.time-=dt;
-      if(this.time<=0){const a=this.A.hp/this.A.maxhp,b=this.B.hp/this.B.maxhp; this.finish(a>b?'L':'R','time')}
+      if(this.time<=0){const tot=(t)=>t.reduce((x,f)=>x+Math.max(0,f.hp)/f.maxhp,0)/t.length; this.finish(tot(this.teamL)>tot(this.teamR)?'L':'R','time')}
     } else this.afterT+=dt;
   }
+  down(f){ if(f.dead||this.over)return; f.dead=true; f.hp=0; const team=f.side==='L'?this.teamL:this.teamR; const o=this.opp(f);
+    if(this.g){this.g=null; for(const x of this.F)if(x.st==='grab'||x.st==='held')x.st='idle'}
+    if(!team.some(x=>!x.dead)){ this.finish(o.side,'ko') }
+    else { f.st='ko';f.t=0;f.kv=(f.side==='L'?-1:1)*160;f.act=null;f.blocking=false; this.pending={side:f.side,t:1.5}; this.ev({t:'down',who:f.side,x:f.x}); this.ev({t:'cheer',amt:0.6}) } }
+  tag(side){ if(this.over||this.intro>0||this.pending||this.tagCd[side]>0)return false; const team=side==='L'?this.teamL:this.teamR; const cur=side==='L'?this.A:this.B;
+    if(cur.dead||!['idle','move','rec','hit','stun','dodge'].includes(cur.st))return false;
+    const i=team.indexOf(cur); let nx=null; for(let k=1;k<team.length;k++){const c=team[(i+k)%team.length]; if(!c.dead){nx=c;break}} if(!nx)return false;
+    this.swapIn(side,nx,false); return true; }
+  swapIn(side,nx,fromKO){ const team=side==='L'?this.teamL:this.teamR; const out=side==='L'?this.A:this.B;
+    out.benched=true; out.act=null; out.blocking=false; out.in.l=out.in.r=out.in.block=0; out.buf=null; out.air=0; out.alpha=1; if(!out.dead)out.st='idle';
+    if(!out.dead){ out.x=-9999*0+out.x } this.outs.push({f:out,t:0});
+    nx.benched=false; nx.fought=true; nx.st='enter'; nx.x=side==='L'?-640:640; nx.tx=fromKO?(side==='L'?-170:170):clamp(out.x,-420,420); nx.alpha=0.2; nx.iframes=1.4; nx.act=null; nx.t=0; nx.kv=0; nx.in.l=nx.in.r=nx.in.block=0; nx.buf=null; nx.pressed.length=0; nx.face=side==='L'?1:-1;
+    if(side==='L')this.A=nx; else this.B=nx; this.F=[this.A,this.B]; this.tagCd[side]=2.5; this.ev({t:'tag',who:side,x:nx.tx}); }
   finish(side,how){ if(this.over)return; this.over=true; this.winner=side; this.how=how||'ko'; this.g=null;
     const lo=side==='L'?this.B:this.A, wi=side==='L'?this.A:this.B;
     for(const f of this.F){if(f.st==='held'||f.st==='grab')f.st='idle'}
@@ -89,7 +114,7 @@ class Match{
     f.iframes=Math.max(0,f.iframes-dt); f.flash=Math.max(0,f.flash-dt*4);
     for(const k in f.buffs){f.buffs[k]-=dt; if(f.buffs[k]<=0)delete f.buffs[k]}
     if(f.buf){f.buf.t-=dt; if(f.buf.t<=0)f.buf=null}
-    if(f.poison){f.poison.t-=dt; f.hp-=f.poison.dps*dt; f.flashP=1; if(f.poison.t<=0)f.poison=null; if(f.hp<=0&&!this.over){f.hp=0;this.finish(f.side==='L'?'R':'L','poison')}}
+    if(f.poison){f.poison.t-=dt; f.hp-=f.poison.dps*dt; f.flashP=1; if(f.poison.t<=0)f.poison=null; if(f.hp<=0&&!this.over){f.hp=0;this.down(f)}}
     f.x+=f.kv*dt; f.kv*=Math.exp(-8*dt);
     if(f.st==='ko'){ f.t+=dt; if(f.t>0.5){const gate=(f.x<0?-1:1)*760; f.x+=Math.sign(gate-f.x)*110*dt; f.alpha=clamp(1-(f.t-0.6)/1.8,0,1);} f.pose='hit'; f.x=clamp(f.x,-800,800); return}
     if(f.st==='win'){f.t+=dt;f.pose=(f.t%1.2<0.35)?'attack':'idle';return}
@@ -116,6 +141,7 @@ class Match{
       case 'rec': { f.t+=dt; f.pose=f.act?f.act.pose:'idle'; if(!f.act||f.t>=f.act.r){f.st='idle';f.act=null} break;}
       case 'hit': { f.t+=dt; f.pose='hit'; f.blocking=false; if(f.t>=f.hitstun){f.st='idle'} break;}
       case 'stun': { f.t+=dt; f.pose='hit'; if(f.t>=f.hitstun){f.st='idle'} break;}
+      case 'enter': { f.x+=(f.tx-f.x)*Math.min(1,dt*3.2); f.pose='idle'; f.alpha=clamp(f.alpha+dt*2.5,0,1); if(Math.abs(f.x-f.tx)<14){f.st='idle';f.alpha=1;f.iframes=Math.max(f.iframes,0.5)} break;}
       case 'dodge': { f.t+=dt; f.pose='idle'; f.x+=f.dd*f.s.run*2.6*Math.max(0,1-f.t/0.36)*dt; f.air=Math.sin(Math.min(1,f.t/0.36)*Math.PI)*28; if(f.t>=0.36){f.st='idle';f.air=0} break;}
     }
   }
@@ -176,12 +202,12 @@ class Match{
       const dmg=m.dmg*0.22*(1-o.s.red); o.hp-=dmg; f.stats.dealt+=dmg; o.stats.taken+=dmg;
       o.stam-=(10+m.dmg*0.8)*o.s.cost; o.kv=fx*m.kb*0.4; this.ev({t:'block',x:o.x,who:o.side,dmg});
       if(o.stam<=0){this.wind(o); this.ev({t:'text',x:o.x,s:'GUARD BREAK'})}
-      if(o.hp<=0)this.finish(f.side,'ko'); return;
+      if(o.hp<=0)this.down(o); return;
     }
     // grabs
     if(m.grab){ this.startGrapple(f,o,m); return }
     let dmg=m.dmg*(f.buffs.frenzy?1.35:1)*(1-o.s.red)*(o.winded>0?1.5:1)*(o.st==='stun'||o.st==='rec'&&o.act&&!o.act.armor?1.15:1)*(o.buffs.frenzy?0.85:1)*(0.93+0.14*this.rnd());
-    if(o.buffs.quills&&m.name!=='sp'){ f.hp-=Math.max(1.5,dmg*0.25); f.flash=1; this.ev({t:'text',x:f.x,s:'QUILLS!'}) }
+    if(o.buffs.quills&&m.name!=='sp'){ f.hp=Math.max(1,f.hp-Math.max(1.5,dmg*0.25)); f.flash=1; this.ev({t:'text',x:f.x,s:'QUILLS!'}) }
     o.hp-=dmg; f.stats.dealt+=dmg; o.stats.taken+=dmg; o.flash=1; o.scratch=Math.min(5,o.scratch+1);
     const pct=dmg/o.maxhp, big=pct>0.1||m.armor;
     const mr=Math.pow(clamp(f.s.mass/o.s.mass,0.05,20),0.3);
@@ -191,7 +217,7 @@ class Match{
     if(m.venom&&!o.poison){o.poison={t:5,dps:m.dmg*m.venom/5}; this.ev({t:'text',x:o.x,s:'POISONED'}) }
     if(m.name==='claw'&&o.winded>0&&!this.g){ this.hitFX(f,o,dmg,big,m); this.startGrapple(f,o,{grab:'pin',dmg:m.dmg*0.55}); return }
     this.hitFX(f,o,dmg,big,m);
-    if(o.hp<=0){o.hp=0;this.finish(f.side,'ko')}
+    if(o.hp<=0){o.hp=0;this.down(o)}
   }
   hitFX(f,o,dmg,big,m){
     this.hitstop=big?0.075:0.04;
@@ -218,11 +244,11 @@ class Match{
       if(!n)continue;
       if(f===b){g.meter=Math.min(110,g.meter+8*n)} else {this.gripTap(f,n)} }
     if(g.kind==='constrict'){b.stam=Math.max(0,b.stam-7*dt)}
-    if(g.tickT>=0.45){g.tickT=0; const d=g.tick*(1-b.s.red*0.5); b.hp-=d; a.stats.dealt+=d; b.stats.taken+=d; b.flash=1; this.ev({t:'hit',x:(a.x+b.x)/2,who:b.side,dmg:d,big:g.kind==='roll',name:'grab',kind:g.kind,dir:a.face}); this.ev({t:'cheer',amt:0.1}); if(b.hp<=0){b.hp=0;this.g=null;a.st='idle';this.finish(a.side,'ko');return}}
+    if(g.tickT>=0.45){g.tickT=0; const d=g.tick*(1-b.s.red*0.5); b.hp-=d; a.stats.dealt+=d; b.stats.taken+=d; b.flash=1; this.ev({t:'hit',x:(a.x+b.x)/2,who:b.side,dmg:d,big:g.kind==='roll',name:'grab',kind:g.kind,dir:a.face}); this.ev({t:'cheer',amt:0.1}); if(b.hp<=0){b.hp=0;this.g=null;a.st='idle';this.down(b);return}}
     if(g.meter>=100){ this.g=null; a.st='stun';a.t=0;a.hitstun=0.6;b.st='idle';b.kv=-a.face*160;a.kv=a.face*-80;b.iframes=0.3;this.ev({t:'free',who:b.side,x:b.x});return}
     if(g.t>=g.dur){ this.g=null; a.st='rec';a.act={pose:'idle',r:0.4};a.t=0;b.st='hit';b.t=0;b.hitstun=0.45;b.kv=a.face*260; this.ev({t:'hit',x:b.x,who:b.side,dmg:0,big:true,name:'throw',dir:a.face}); }
   }
-  gripTap(f,n){ const g=this.g; if(!g||g.a!==f)return; if(g.mark>g.zone[0]&&g.mark<g.zone[1]){g.meter=Math.max(0,g.meter-14);g.gHit++;g.b.hp-=g.tick*0.5;this.ev({t:'text',x:f.x,s:'GRIP!'});g.flash=1}else{g.meter+=3;f.stam=Math.max(0,f.stam-3)} }
+  gripTap(f,n){ const g=this.g; if(!g||g.a!==f)return; if(g.mark>g.zone[0]&&g.mark<g.zone[1]){g.meter=Math.max(0,g.meter-14);g.gHit++;g.b.hp=Math.max(1,g.b.hp-g.tick*0.5);this.ev({t:'text',x:f.x,s:'GRIP!'});g.flash=1}else{g.meter+=3;f.stam=Math.max(0,f.stam-3)} }
   // ---------- AI ----------
   think(f,o,dt){
     if(f.st==='grab'||f.st==='held'||f.st==='ko'||f.st==='win')return;
@@ -238,6 +264,7 @@ class Match{
       else if(r<pb+pd&&f.stam>14){this.press(f,'dodge'); f.in.l=f.in.r=0; set(-dir);}
     }
     if(ai.t>0)return; ai.t=0.14+0.2*(1-skill)+this.rnd()*0.12;
+    if(!this.pending&&this.tagCd[f.side]<=0&&(f.hp<f.maxhp*0.3||(f.winded>0.3))&&this.rnd()<0.45){ const tm=f.side==='L'?this.teamL:this.teamR; if(tm.some(x=>!x.dead&&x!==f&&x.hp>x.maxhp*0.35)&&this.tag(f.side))return }
     if(f.st==='wind'||f.st==='act'||f.st==='rec'||f.st==='dodge'||f.st==='hit'||f.st==='stun')return;
     const reachB=22+0, reachC=36;
     const inB=gap<=22, inC=gap<=36;
@@ -268,15 +295,15 @@ class Match{
   }
 }
 // Monte-Carlo: win probability of A vs B when both are AI-controlled at given skill
-function winProb(idA,idB,n=60,skillA=0.85,skillB=0.55,seed=1){
+function winProb(idA,idB,n=60,skillA=0.85,skillB=0.55,seed=1){ const lim=70+30*((Array.isArray(idA)?idA.length:1)-1);
   let w=0;
   for(let i=0;i<n;i++){
-    const m=new Match(idA,idB,{seed:seed*7919+i,skipIntro:true,aiA:true,skillA:skillA,skillB:skillB,limit:70});
-    let k=0; while(!m.over&&k<70*30){m.step(1/30);m.events.length=0;k++}
-    if(!m.over){m.finish(m.A.hp/m.A.maxhp>m.B.hp/m.B.maxhp?'L':'R','time')}
+    const m=new Match(idA,idB,{seed:seed*7919+i,skipIntro:true,aiA:true,skillA:skillA,skillB:skillB,limit:lim});
+    let k=0; while(!m.over&&k<lim*30){m.step(1/30);m.events.length=0;k++}
+    if(!m.over){const tot=(t)=>t.reduce((x,f)=>x+Math.max(0,f.hp)/f.maxhp,0)/t.length; m.finish(tot(m.teamL)>tot(m.teamR)?'L':'R','time')}
     if(m.winner==='L')w++;
   }
   return w/n;
 }
-window.LE_ENGINE={Match,Fighter,derive,winProb,mulberry,SPEC_MOVES,clamp};
+window.LE_ENGINE={Match,Fighter,derive,stageOf,winProb,mulberry,SPEC_MOVES,clamp};
 })();

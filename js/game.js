@@ -4,10 +4,10 @@ const D=window.LE_DATA, E=window.LE_ENGINE, SP=D.SPECIES, clamp=E.clamp;
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const q=new URLSearchParams(location.search); const TS=Math.max(1,+q.get('ts')||1);
 // ================= SAVE =================
-const KEY='leafEvolve.v1';
-const blank=()=>({v:1,line:null,animal:null,dna:0,coins:100,wins:0,losses:0,bouts:0,mode:'kids',muted:false,seen:{},beaten:{},path:[],bestStreak:0,streak:0});
+const KEY='leafEvolve.v2';
+const blank=()=>({v:2,coins:300,till:0,zoo:[],nextU:1,team:[],habs:{},mode:'kids',muted:false,wins:0,losses:0,bouts:0,beaten:{},free:{},streak:0,last:Date.now()});
 let S=blank();
-function load(){try{const j=JSON.parse(localStorage.getItem(KEY)||'null'); if(j&&j.v===1)S=Object.assign(blank(),j)}catch(e){}}
+function load(){try{const j=JSON.parse(localStorage.getItem(KEY)||'null'); if(j&&j.v===2)S=Object.assign(blank(),j)}catch(e){}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 load();
 const teen=()=>S.mode==='teen';
@@ -170,7 +170,7 @@ function draw(t){
   drawParts(c,L,sc,false);
   // fighters (the one acting draws in front)
   const order=[f1,f2].sort((a,b)=>(a.st==='act'||a.st==='grab'?1:0)-(b.st==='act'||b.st==='grab'?1:0));
-  order.forEach(f=>drawFighter(c,f,L,sc,t));
+  M.outs.forEach(o=>drawFighter(c,o.f,L,sc,t)); order.forEach(f=>drawFighter(c,f,L,sc,t));
   drawParts(c,L,sc,true);
   // slips flying (13+ betting)
   if(teen()){ c.save(); slipsFly.forEach(s=>{ c.translate(s.x,s.y); c.rotate(s.r); c.fillStyle='#f4ead0'; c.fillRect(-4,-5,8,10); c.fillStyle='#b8402e'; c.fillRect(-4,-1,8,1.6); c.setTransform(view.dpr,0,0,view.dpr,0,0); c.translate(sx,sy); }); c.restore(); }
@@ -210,6 +210,8 @@ function handleEvents(){
       case 'text': ftext(e.x,e.s,'#fff'); break;
       case 'bell': AU.bell(); banner('FIGHT!',900); cheer(0.5); break;
       case 'wind': { const f=e.who==='L'?M.A:M.B; if(e.kind==='venom'&&(f.id==='cobra'))AU.hiss(); break; }
+      case 'tag': AU.whoosh(1); AU.growl(((e.who==='L'?M.A:M.B).s.mass)||1); ftext(e.x,'TAG IN!','#ffd98a',true); cheer(0.3); break;
+      case 'down': ftext(e.x,'DOWN!','#ff9a6a',true); AU.ko(); shake=Math.max(shake,12); cheer(0.6); AU.cheer(0.8); spawnSlips(6); break;
       case 'end': AU.ko(); cheer(1); AU.cheer(1); flashV=0.25; spawnSlips(14); banner(e.side==='L'?'VICTORY!':(e.how==='time'?'TIME UP':'DEFEATED'),2200); break;
     }
   }
@@ -220,10 +222,10 @@ function handleEvents(){
 function banner(s,ms){ const b=$('#banner'); b.textContent=s; b.classList.add('on'); setTimeout(()=>b.classList.remove('on'),ms) }
 // ---- HUD ----
 function hud(){
-  const set=(id,f)=>{ const h=$(id); $('.nm',h).textContent=f.s.name; $('.hp i',h).style.width=Math.max(0,f.hp/f.maxhp*100)+'%'; $('.st i',h).style.width=Math.max(0,f.stam)+'%';
+  const set=(id,f,tm)=>{ const h=$(id); $('.nm',h).textContent=(f.uid?(S.zoo.find(z=>z.u===f.uid)||{}).nick||f.s.name:f.s.name)+' L'+f.s.lvl; $('.hp i',h).style.width=Math.max(0,f.hp/f.maxhp*100)+'%'; $('.st i',h).style.width=Math.max(0,f.stam)+'%';
     $('.hp i',h).style.background=f.hp/f.maxhp<0.3?'linear-gradient(#ff9a6a,#c0452e)':''; $('.st i',h).style.opacity=f.winded>0?0.4:1;
-    $('.stt',h).textContent=(f.winded>0?'WINDED ':'')+(f.poison?'POISONED ':'')+(f.buffs.frenzy?'FRENZY ':'')+(f.buffs.sprint?'SPRINT ':'')+(f.buffs.quills?'QUILLS ':''); };
-  set('#hbL',M.A); set('#hbR',M.B); $('#clock').textContent=Math.max(0,Math.ceil(M.time));
+    $('.stt',h).textContent=D.STAGES[f.s.stage].n+' '+tm.map(x=>x.dead?'○':x===f?'◉':'●').join('')+' '+(f.winded>0?'WINDED ':'')+(f.poison?'POISONED ':'')+(f.buffs.frenzy?'FRENZY ':'')+(f.buffs.sprint?'SPRINT ':'')+(f.buffs.quills?'QUILLS ':''); };
+  set('#hbL',M.A,M.teamL); set('#hbR',M.B,M.teamR); if(lblId!==M.A.id)setLabels(M.A); const tb=$('#bTag'); const alive=M.teamL.filter(x=>!x.dead&&x!==M.A).length; tb.style.display=M.teamL.length>1?'':'none'; tb.disabled=!alive||M.tagCd.L>0; tb.innerHTML='TAG<small>'+(alive?(M.teamL[(M.teamL.indexOf(M.A)+1)%M.teamL.length].s.name):'no partner')+'</small>'; tb.style.opacity=(!alive||M.tagCd.L>0)?0.5:1; $('#clock').textContent=Math.max(0,Math.ceil(M.time));
   const sp=$('#bSp'); const cd=M.A.cd.sp; let el=sp.querySelector('.cd'); if(!el){el=document.createElement('div');el.className='cd';sp.appendChild(el)} el.style.height=(cd>0?cd/2.2*100:0)+'%';
   const g=M.g, gp=$('#grip'); if(g){ gp.classList.add('on'); const me=g.b===M.A, att=g.a===M.A; $('#gripT').textContent=me?'GRABBED! MASH ANY BUTTON!':att?'SQUEEZE! TAP BITE IN THE GREEN':'GRAPPLE'+(g.kind==='roll'?' · DEATH ROLL':''); $('#gMeter').style.width=Math.min(100,g.meter)+'%'; $('#gZone').style.display=att?'block':'none'; $('#gMark').style.left=`calc(${g.mark*100}% - 3px)`; } else gp.classList.remove('on');
 }
@@ -233,119 +235,192 @@ function loop(ts){ if(!running)return; const dt=Math.min(0.05,(ts-lastT)/1000||0
   ft+=dt; draw(ft); hud();
   if(M.over&&!ended&&M.afterT>2.8){ ended=true; endFight(); return }
   requestAnimationFrame(loop); }
-function startFight(oppId){
-  curOpp=oppId; ended=false; parts=[];texts=[];slipsFly=[]; crowd.e=0.15; shake=0; flashV=0; cam.x=0;cam.w=900;
+function modOf(a){ return {stage:E.stageOf(a.lvl),lvl:a.lvl,tr:a.tr} }
+function myTeam(){ return S.team.map(u=>S.zoo.find(z=>z.u===u)).filter(Boolean).map(a=>({id:a.id,uid:a.u,mod:modOf(a)})) }
+function normTeam(t){ return (Array.isArray(t)?t:[t]).map(e=>typeof e==='string'?{id:e,mod:{stage:2,lvl:5,tr:{p:0,s:0,d:0}}}:e) }
+let lblId=null, curTeam=null;
+function startFight(oppTeam){
+  curTeam=normTeam(oppTeam); ended=false; parts=[];texts=[];slipsFly=[]; crowd.e=0.15; shake=0; flashV=0; cam.x=0;cam.w=900; lblId=null;
   show('fight'); cv=$('#cv'); cx=cv.getContext('2d'); sizeCanvas(); AU.init(); if(AU.ctx&&AU.ctx.state==='suspended')AU.ctx.resume(); $('#mute').textContent=S.muted?'🔇':'🔊';
-  M=new E.Match(S.animal,oppId,{aiA:!!window.LE_AUTOPLAY,skillA:0.85,skillB:oppSkill});
-  window.LE.match=M;
-  // control labels
-    setLabels(); running=true; lastT=performance.now(); acc=0; requestAnimationFrame(loop); setTimeout(()=>{AU.growl(SP[S.animal].mass)},400); setTimeout(()=>{AU.growl(SP[oppId].mass)},900);
+  M=new E.Match(myTeam(),curTeam,{aiA:!!window.LE_AUTOPLAY,skillA:0.85,skillB:oppSkill});
+  window.LE.match=M; running=true; lastT=performance.now(); acc=0; requestAnimationFrame(loop);
+  setTimeout(()=>{AU.growl(M.A.s.mass||1)},400); setTimeout(()=>{AU.growl(M.B.s.mass||1)},900);
   banner('ENTER THE COLOSSEUM',1300);
 }
-const CLAWL={grizzly:'CLAW',polar:'CLAW',lion:'CLAW',tiger:'CLAW',jaguar:'CLAW',cheetah:'CLAW',gorilla:'SLAM',ostrich:'KICK',cassowary:'KICK',kangaroo:'KICK',croc:'TAIL LASH',youngcroc:'TAIL LASH',saltcroc:'TAIL LASH',hippo:'SLAM',rhino:'HORN',elephant:'TUSK',anaconda:'LASH',cobra:'LASH',komodo:'TAIL LASH',gila:'CLAW',porcupine:'SWAT',wolfpup:'SLASH',wolf:'SLASH',alphawolf:'SLASH',swiftwolf:'SLASH'};
-function setLabels(){ const l=CLAWL[S.animal]||'CLAW'; const b=$('#bClaw'); b.textContent=l; const s=$('#bSp'); s.textContent=D.SPECIALS[SP[S.animal].sp].label; }
+const CLAWL={gorilla:'SLAM',ostrich:'KICK',cassowary:'KICK',kangaroo:'KICK',croc:'TAIL LASH',saltcroc:'TAIL LASH',hippo:'SLAM',rhino:'HORN',elephant:'TUSK',anaconda:'LASH',cobra:'LASH',komodo:'TAIL LASH',porcupine:'SWAT',wolf:'SLASH',fox:'SLASH'};
+function setLabels(f){ lblId=f.id; $('#bClaw').textContent=CLAWL[f.id]||'CLAW'; $('#bSp').textContent=D.SPECIALS[SP[f.id].sp].label; }
 // ---- player input ----
 function bind(){
   const A=()=>M&&M.A;
   const down=(a)=>{ if(!M||M.over||M.intro>0)return; const f=M.A; AU.init();
-    if(a==='left'){f.in.l=1} else if(a==='right'){f.in.r=1} else if(a==='block'){f.in.block=1; if(M.g)f.pressed.push('mash')} else { M.press(f,a) } 
+    if(a==='left'){f.in.l=1} else if(a==='right'){f.in.r=1} else if(a==='block'){f.in.block=1; if(M.g)f.pressed.push('mash')} else if(a==='tag'){M.tag('L')} else { M.press(f,a) } 
     if(M.g&&(a==='left'||a==='right'))f.pressed.push('mash'); };
   const up=(a)=>{ if(!M)return; const f=M.A; if(a==='left')f.in.l=0; if(a==='right')f.in.r=0; if(a==='block')f.in.block=0; };
   $$('#ctl .b').forEach(b=>{ const a=b.dataset.a; b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture&&b.setPointerCapture(e.pointerId);b.classList.add('p');down(a)}); ['pointerup','pointercancel','lostpointercapture'].forEach(ev=>b.addEventListener(ev,()=>{b.classList.remove('p');up(a)})); b.addEventListener('contextmenu',e=>e.preventDefault()); });
-  const km={a:'left',arrowleft:'left',d:'right',arrowright:'right',s:'block',arrowdown:'block',j:'bite',k:'claw',l:'charge',';':'sp',' ':'dodge',w:'dodge'};
+  const km={a:'left',arrowleft:'left',d:'right',arrowright:'right',s:'block',arrowdown:'block',j:'bite',k:'claw',l:'charge',';':'sp',' ':'dodge',w:'dodge',t:'tag'};
   addEventListener('keydown',e=>{ const a=km[e.key.toLowerCase()]; if(a&&!e.repeat&&$('#s-fight').classList.contains('on')){e.preventDefault();down(a)} });
   addEventListener('keyup',e=>{ const a=km[e.key.toLowerCase()]; if(a)up(a) });
   $('#mute').addEventListener('click',()=>{AU.init();AU.mute(!S.muted)});
 }
 // ================= SCREENS =================
-function show(n){ $$('.screen').forEach(s=>s.classList.toggle('on',s.id==='s-'+n)); if(n!=='fight')running=false; window.LE.screen=n; }
-const f0=(n)=>n>=1000?n.toLocaleString('en-US'):(n<1?n.toFixed(2):n%1?n.toFixed(1):''+n);
+function show(n){ $$('.screen').forEach(s=>{const on=s.id==='s-'+n; s.classList.toggle('on',on); if(!on&&s.id!=='s-fight')s.innerHTML=''}); if(n!=='fight')running=false; window.LE.screen=n; }
+const f0=(n)=>n>=1000?Math.round(n).toLocaleString('en-US'):(n<1?n.toFixed(2):n<10&&n%1?n.toFixed(1):''+Math.round(n));
 const stars=(a)=>'★'.repeat(Math.round(a/2))||'·';
-function statsHTML(id){ const s=SP[id]; return `<div class="stats"><span>Weight</span><span>${f0(s.mass)} kg</span><span>Length</span><span>${f0(s.len)} m</span><span>Top speed</span><span>${s.spd} km/h</span><span>Bite/strike</span><span>~${f0(s.bite)} N</span><span>Armor</span><span>${stars(s.arm)} (${s.arm}/10)</span><span>Special</span><span>${D.SPECIALS[s.sp].label}</span></div>`; }
+const STG=D.STAGES, MAXLV=10;
 const thumb=(id,p='idle')=>`assets/a/${SP[id].art}/${p}.webp`;
 const modeBadge=()=>teen()?'<span class="chip gold">13+ mode</span>':'<span class="chip ok">Kids mode</span>';
-function title(){ show('title'); const has=!!S.animal;
-  $('#s-title').innerHTML=`<h1>🍃 LEAF EVOLVE</h1><p class="sub">Start small. Fight real wild animals in the Colosseum. Evolve.</p>
-  <div class="hero" style="height:230px"><img src="${thumb('lion','attack')}" style="transform:scaleX(1)"><img src="${thumb('grizzly','idle')}" style="transform:scaleX(-1)"></div>
-  ${has?`<button class="btn" id="bCont">CONTINUE · ${SP[S.animal].n}</button><button class="btn alt" id="bNew">New game</button>`:`<button class="btn" id="bNew">PLAY</button>`}
+const btnS='width:auto;min-height:40px;margin:0;font-size:15px;padding:0 14px';
+const getA=(u)=>S.zoo.find(z=>z.u===u);
+const dA=(a)=>E.derive(a.id,modOf(a));
+const stageN=(a)=>STG[E.stageOf(a.lvl)].n;
+const need=(lvl)=>60+40*(lvl-1);
+const aName=(a)=>`${SP[a.id].n}`;
+const price=(id)=>Math.max(40,Math.round(Math.pow(E.derive(id,{stage:2,lvl:5}).power,2)/80/10)*10);
+function newAnimal(id){ const a={u:S.nextU++,id,lvl:1,xp:0,tr:{p:0,s:0,d:0}}; S.zoo.push(a); if(S.team.length<3&&!SP[id].hybrid&&S.team.length===0)S.team.push(a.u); return a; }
+// ---- progression: XP, stages ----
+function addXP(a,x,ups){ const s0=E.stageOf(a.lvl); a.xp+=x; while(a.lvl<MAXLV&&a.xp>=need(a.lvl)){a.xp-=need(a.lvl);a.lvl++} if(a.lvl>=MAXLV)a.xp=Math.min(a.xp,need(MAXLV)-1); const s1=E.stageOf(a.lvl); if(s1>s0&&ups)ups.push({u:a.u,from:s0,to:s1}); return s1>s0 }
+const feedCost=(a)=>15+5*a.lvl;
+const trainCap=(a)=>2+2*E.stageOf(a.lvl);
+const trainPts=(a)=>a.tr.p+a.tr.s+a.tr.d;
+const trainCost=(a,k)=>30+12*a.tr[k]+4*a.lvl;
+function feed(u){ const a=getA(u); if(!a||S.coins<feedCost(a)||a.lvl>=MAXLV&&a.xp>=need(MAXLV)-1)return null; S.coins-=feedCost(a); const ups=[]; addXP(a,40,ups); save(); return {ups}; }
+function train(u,k){ const a=getA(u); if(!a||a.tr[k]>=trainCap(a)||S.coins<trainCost(a,k))return null; S.coins-=trainCost(a,k); a.tr[k]++; const ups=[]; addXP(a,12,ups); save(); return {ups}; }
+// ---- Leaf Park habitats & visitor income ----
+const HMAX=4;
+const buildCost=()=>250, upCost=(L)=>Math.round(120*Math.pow(L+1,1.5)/10)*10;
+const hl=(h)=>S.habs[h]||0;
+function housed(h){ const L=hl(h); if(!L)return []; return S.zoo.filter(a=>SP[a.id].hab===h).sort((x,y)=>dA(y).power-dA(x).power).slice(0,1+L); }
+function perMin(a,L){ return Math.round((3+dA(a).power/6)*(0.8+0.35*L)); }
+function habRate(h){ const L=hl(h); return housed(h).reduce((s,a)=>s+perMin(a,L),0); }
+function totalRate(){ return Object.keys(D.HABITATS).reduce((s,h)=>s+habRate(h),0); }
+const tillCap=()=>Math.max(60,totalRate()*40);
+function tick(sec){ const r=totalRate(); if(r>0){ S.till=Math.min(tillCap(),S.till+r/60*sec) } }
+function collect(){ const n=Math.floor(S.till); if(n<=0)return 0; S.till-=n; S.coins+=n; save(); return n }
+function build(h){ const L=hl(h); if(L>=HMAX)return false; const c=L?upCost(L):buildCost(); if(S.coins<c)return false; S.coins-=c; S.habs[h]=L+1; save(); return true }
+{ const off=Math.min(1800,Math.max(0,(Date.now()-(S.last||Date.now()))/1000)); if(S.zoo.length)tick(off); S.last=Date.now(); }
+setInterval(()=>{ tick(TS); S.last=Date.now(); const el=$('#tillv'); if(el)el.textContent=Math.floor(S.till); const c=$('#coinv'); if(c)c.textContent=S.coins; if((window.LE.screen==='park')&&(++tickN%5===0))save(); },1000); let tickN=0;
+// ---- title / start ----
+function title(){ show('title'); const has=S.zoo.length>0;
+  $('#s-title').innerHTML=`<h1>🍃 LEAF EVOLVE</h1><p class="sub">Raise real big cats and beasts. Run Leaf Park. Fight in the Colosseum.</p>
+  <div class="hero" style="height:230px"><img src="${thumb('lion','attack')}"><img src="${thumb('tiger','idle')}" style="transform:scaleX(-1)"></div>
+  ${has?`<button class="btn" id="bCont">CONTINUE · ${S.zoo.length} animals</button><button class="btn alt" id="bNew">New game</button>`:`<button class="btn" id="bNew">PLAY</button>`}
   <div class="card"><b>Mode:</b> ${modeBadge()}<div class="modes"><button class="btn ${teen()?'alt':'green'}" id="mKids">Kids (default)</button><button class="btn ${teen()?'green':'alt'}" id="mTeen">13+</button></div>
   <div class="note">Kids: no scratches, no betting. 13+ adds mild scratch marks and the coin-only betting screen. No blood in either mode.</div></div>
   <div class="brand">leafactivity.com · Leaf Evolve demo · all coins are in-game only</div>`;
   $('#bNew')&&($('#bNew').onclick=()=>{AU.init();AU.ui(); if(has&&!confirm('Start a new game? Your saved progress will be replaced.'))return; const m=S.mode,mu=S.muted; S=blank(); S.mode=m;S.muted=mu; save(); starter()});
   $('#bCont')&&($('#bCont').onclick=()=>{AU.init();AU.ui();hub()});
   $('#mKids').onclick=()=>{S.mode='kids';save();title()};
-  $('#mTeen').onclick=()=>{ if(teen())return; if(confirm('13+ mode adds scratch marks and a coin-only betting screen. Are you 13 or older?')){S.mode='teen';save();title()} };
-}
-function starter(){ show('starter'); $('#s-starter').innerHTML=`<h2>Choose your starter</h2><p class="sub">Each line evolves along real-life relatives. Small animals can win with good timing.</p><div class="cards">${Object.entries(D.LINES).map(([k,l])=>{const id=l.start,s=SP[id];return `<div class="card ac" data-l="${k}"><img src="${thumb(id)}"><div class="t"><b>${s.n}</b> <span class="chip">${l.n}</span><br>${l.blurb}<br><span class="chip">${f0(s.mass)} kg</span><span class="chip">${s.spd} km/h</span><span class="chip">${D.SPECIALS[s.sp].label}</span></div></div>`}).join('')}</div>`;
-  $$('#s-starter .ac').forEach(a=>a.onclick=()=>{ const l=D.LINES[a.dataset.l]; S.line=a.dataset.l; S.animal=l.start; S.seen[l.start]=1; S.path=[l.start]; save(); AU.ui(); hub() }); }
-function canEvolve(){ const o=D.LINES[S.line].evo[S.animal]||[]; return o.some(e=>S.dna>=e[1]) }
-function nextCost(){ const o=D.LINES[S.line].evo[S.animal]||[]; return o.length?Math.min(...o.map(e=>e[1])):0 }
-function hub(){ show('hub'); const s=SP[S.animal], cost=nextCost(), ok=canEvolve();
-  $('#s-hub').innerHTML=`<div class="top"><span>🏆 ${S.wins}W · ${S.losses}L</span>${modeBadge()}<span class="coin">🪙 ${S.coins}</span></div>
-  <h2>${s.n}</h2><div class="hero"><img src="${thumb(S.animal)}"></div>
-  <div class="card"><div class="top"><span>🧬 DNA ${S.dna}${cost?` / ${cost}`:''}</span><span>${cost?(ok?'<b class="up">Ready to evolve!</b>':'Win fights to earn DNA'):'Fully evolved'}</span></div><div class="dnab"><i style="width:${cost?Math.min(100,S.dna/cost*100):100}%"></i></div></div>
+  $('#mTeen').onclick=()=>{ if(teen())return; if(confirm('13+ mode adds scratch marks and a coin-only betting screen. Are you 13 or older?')){S.mode='teen';save();title()} }; }
+function starter(){ show('starter'); const opts=['tiger','lion'];
+  $('#s-starter').innerHTML=`<h2>Adopt your first cub</h2><p class="sub">Feed it, train it, and watch it grow: Cub → Juvenile → Adult → Alpha. You get 300 coins and its first habitat for free.</p><div class="cards">${opts.map(id=>{const d=E.derive(id,{stage:0,lvl:1}),s=SP[id];return `<div class="card ac" data-id="${id}"><img src="${thumb(id)}" style="transform:scale(.8)"><div class="t"><b>${s.n} cub</b><br>${s.fact}<br><span class="chip">cub ~${f0(d.realMass)} kg</span><span class="chip">adult ~${f0(s.mass)} kg</span><span class="chip">${D.SPECIALS[s.sp].label}</span><span class="chip">${D.HABITATS[s.hab].n} habitat</span></div></div>`}).join('')}</div>`;
+  $$('#s-starter .ac').forEach(a=>a.onclick=()=>{ const id=a.dataset.id; const an=newAnimal(id); S.team=[an.u]; S.habs[SP[id].hab]=1; S.coins=300; S.till=0; S.last=Date.now(); save(); AU.ui(); hub() }); }
+function hub(){ show('hub'); const lead=getA(S.team[0]); const rate=totalRate();
+  $('#s-hub').innerHTML=`<div class="top"><span>🏆 ${S.wins}W · ${S.losses}L</span>${modeBadge()}<span class="coin">🪙 <span id="coinv">${S.coins}</span></span></div>
+  <h2>🍃 Leaf Park HQ</h2><div class="hero">${lead?`<img src="${thumb(lead.id)}" style="transform:scale(${[.62,.8,1,1.08][E.stageOf(lead.lvl)]});transform-origin:bottom center">`:''}</div>
+  <div class="card"><div class="top"><span>👥 Team (${S.team.length}/3)</span><span>${S.team.map(u=>{const a=getA(u);return a?`<span class="chip gold">${aName(a)} · ${stageN(a)} L${a.lvl}</span>`:''}).join('')}</span></div>
+  <div class="top"><span>🎟 Visitors pay <b>${rate}</b> coins/min</span><span>Till: <b id="tillv">${Math.floor(S.till)}</b></span></div></div>
   <button class="btn red" id="bFight">⚔ FIGHT IN THE COLOSSEUM</button>
-  <button class="btn ${ok?'green':'alt'}" id="bEvo">🧬 EVOLVE ${ok?'(READY!)':''}</button>
-  <div class="row"><button class="btn alt" id="bPark">🌿 Park</button><button class="btn alt" id="bHome">☰ Menu</button></div>
-  <div class="card">${statsHTML(S.animal)}<div class="note" style="text-align:left">${s.fact}</div></div>`;
-  $('#bFight').onclick=()=>{AU.init();AU.ui();pickOpp()}; $('#bEvo').onclick=()=>{AU.ui();evolveScreen()}; $('#bPark').onclick=()=>{AU.ui();park()}; $('#bHome').onclick=title; }
-// ---- opponents ----
-const EXCL=new Set(['wolfpup','youngcroc','alphawolf','swiftwolf']);
-function myPower(){return E.derive(S.animal).power}
-function pickContenders(){ const me=myPower(), art=SP[S.animal].art; const pool=Object.keys(SP).filter(id=>!EXCL.has(id)&&SP[id].art!==art&&id!==S.animal);
-  const rnd=E.mulberry(S.bouts*131+7); const res=[],used=new Set();
-  (S.bouts<3?[0.55,0.8,1.1]:[0.7,1.0,1.4]).forEach(t=>{ let best=null,bs=1e9; pool.forEach(id=>{ if(used.has(id))return; const r=E.derive(id).power/me; const sc=Math.abs(Math.log(r/t))+rnd()*0.22; if(sc<bs){bs=sc;best=id} }); if(best){used.add(best);res.push(best)} });
+  <div class="row"><button class="btn alt" id="bZoo">🐾 My animals</button><button class="btn alt" id="bPark">🏞 Leaf Park${S.till>=10?' 💰':''}</button></div>
+  <div class="row"><button class="btn alt" id="bMkt">🛒 Market</button><button class="btn alt" id="bHome">☰ Menu</button></div>`;
+  $('#bFight').onclick=()=>{AU.init();AU.ui();pickOpp()}; $('#bZoo').onclick=()=>{AU.ui();zoo()}; $('#bPark').onclick=()=>{AU.ui();park()}; $('#bMkt').onclick=()=>{AU.ui();market()}; $('#bHome').onclick=title; }
+// ---- my animals ----
+function statsAt(a){ const d=dA(a),s=SP[a.id]; return `<div class="stats"><span>Weight</span><span>${f0(d.realMass)} kg</span><span>Length</span><span>${f0(d.realLen)} m</span><span>Top speed</span><span>${Math.round(d.realSpd)} km/h</span><span>Bite/strike</span><span>~${f0(d.realBite)} N</span><span>Armor</span><span>${stars(s.arm)} (${s.arm}/10)</span><span>Special</span><span>${D.SPECIALS[s.sp].label}</span><span>Game: HP / hit</span><span>${d.maxhp} / ${d.dmg.toFixed(1)}</span></div>`; }
+function zoo(){ show('zoo');
+  $('#s-zoo').innerHTML=`<div class="top"><button class="btn alt" style="${btnS}" id="bBack">◀ Back</button><span>👥 Team ${S.team.length}/3</span><span class="coin">🪙 <span id="coinv">${S.coins}</span></span></div><h2>🐾 My animals</h2><p class="sub">Pick up to 3 for the Colosseum. Tag-switch between them mid-fight.</p>
+  <div class="cards">${S.zoo.map(a=>{const inT=S.team.indexOf(a.u),st=E.stageOf(a.lvl),d=dA(a);return `<div class="card ${inT>=0?'sel':''}"><div class="ac" data-u="${a.u}"><img src="${thumb(a.id)}" style="transform:scale(${[.7,.85,1,1.05][st]})"><div class="t"><b>${aName(a)}</b> <span class="chip gold">${STG[st].n}</span><span class="chip">L${a.lvl}</span>${SP[a.id].hybrid?'<span class="chip hot">hybrid</span>':''}<br>Power ${d.power} · ${D.HABITATS[SP[a.id].hab].n}<div class="dnab" style="margin-top:4px"><i style="width:${a.lvl>=MAXLV?100:a.xp/need(a.lvl)*100}%"></i></div></div></div>
+   <div class="row" style="margin-top:6px"><button class="btn alt" data-m="${a.u}" style="min-height:44px;font-size:15px;margin:0">Feed &amp; train</button><button class="btn ${inT>=0?'green':'alt'}" data-t="${a.u}" style="min-height:44px;font-size:15px;margin:0">${inT>=0?'In team #'+(inT+1)+' ✓':'Add to team'}</button></div></div>`}).join('')}</div>`;
+  $('#bBack').onclick=hub; $$('#s-zoo [data-m],#s-zoo .ac').forEach(b=>b.onclick=()=>animal(+(b.dataset.m||b.dataset.u)));
+  $$('#s-zoo [data-t]').forEach(b=>b.onclick=()=>{ toggleTeam(+b.dataset.t); zoo() }); }
+function toggleTeam(u){ const i=S.team.indexOf(u); if(i>=0){ if(S.team.length>1)S.team.splice(i,1) } else if(S.team.length<3)S.team.push(u); save(); }
+let msg='';
+function animal(u){ show('animal'); const a=getA(u); if(!a)return zoo(); const st=E.stageOf(a.lvl), d=dA(a), cap=trainCap(a); const full=a.lvl>=MAXLV&&a.xp>=need(MAXLV)-1;
+  const nextStage=STG[st+1]; const tr=(k,l)=>{const c=trainCost(a,k),dis=a.tr[k]>=cap||S.coins<c;return `<button class="btn alt" data-k="${k}" ${dis?'disabled':''} style="min-height:56px;font-size:14px;margin:0">${l}<small style="display:block;font-size:11px">${a.tr[k]>=cap?'max for '+STG[st].n:a.tr[k]+'/'+cap+' · 🪙'+c}</small></button>`};
+  $('#s-animal').innerHTML=`<div class="top"><button class="btn alt" style="${btnS}" id="bBack">◀ Back</button><span class="coin">🪙 <span id="coinv">${S.coins}</span></span></div><h2>${aName(a)} · ${STG[st].n} L${a.lvl}</h2>
+  <div class="hero" style="height:170px"><img src="${thumb(a.id)}" style="transform:scale(${[.62,.8,1,1.08][st]});transform-origin:bottom center"></div>
+  <div class="card"><div class="top" id="stg">${STG.map((s,i)=>`<span class="chip ${i===st?'gold':i<st?'ok':''}">${s.n}</span>`).join('→')}</div><div class="top"><span>XP ${a.lvl>=MAXLV?'MAX':a.xp+' / '+need(a.lvl)}</span><span>${nextStage?'Next stage at level '+nextStage.lvl:'Fully grown alpha'}</span></div><div class="dnab"><i style="width:${a.lvl>=MAXLV?100:a.xp/need(a.lvl)*100}%"></i></div></div>
+  <div class="row"><button class="btn green" id="bFeed" ${(S.coins<feedCost(a)||full)?'disabled':''}>🥩 FEED<small style="display:block;font-size:12px">+40 XP · 🪙${feedCost(a)}</small></button></div>
+  <div class="note" style="margin:0">TRAIN (+12 XP): raises power, speed or guard</div>
+  <div class="row" style="margin:6px 0">${tr('p','💪 POWER')}${tr('s','⚡ SPEED')}${tr('d','🛡 GUARD')}</div>
+  <div class="note" id="msg" style="min-height:18px;color:#ffd98a">${msg}</div>
+  <button class="btn ${S.team.includes(a.u)?'green':'alt'}" id="bTeam">${S.team.includes(a.u)?'✓ In your Colosseum team':'Add to Colosseum team'}</button>
+  <div class="card">${statsAt(a)}<div class="note" style="text-align:left">${SP[a.id].fact}</div></div>`;
+  msg='';
+  $('#bBack').onclick=zoo; $('#bTeam').onclick=()=>{toggleTeam(a.u);animal(u)};
+  $('#bFeed').onclick=()=>{ AU.init(); const r=feed(u); if(!r)return; AU.ui(); msg='Yum! +40 XP'; r.ups.length?grow(r.ups,()=>animal(u)):animal(u) };
+  $$('#s-animal [data-k]').forEach(b=>b.onclick=()=>{ AU.init(); const r=train(u,b.dataset.k); if(!r)return; AU.ui(); msg='Training done! '+({p:'Power',s:'Speed',d:'Guard'})[b.dataset.k]+' +1'; r.ups.length?grow(r.ups,()=>animal(u)):animal(u) }); }
+// ---- growth stage-up screen ----
+function grow(ups,done){ const g=ups[0]; const a=getA(g.u); AU.init(); AU.evolve(); const fl=$('#flash'); fl.classList.add('on'); setTimeout(()=>fl.classList.remove('on'),60); show('evolve');
+  const sc=[.62,.8,1,1.08]; const before=E.derive(a.id,{stage:g.from,lvl:STG[g.from].lvl}), after=dA(a);
+  $('#s-evolve').innerHTML=`<h2>🎉 Growth stage up!</h2><div class="hero glow" style="height:240px"><img id="gimg" src="${thumb(a.id)}" style="transform:scale(${sc[g.from]});transform-origin:bottom center;transition:transform 1.4s ease-out"></div><div class="bigtxt win" style="font-size:30px">${aName(a)}: ${STG[g.from].n} → ${STG[g.to].n}</div>
+  <div class="card"><div class="stats"><span>Weight</span><span>${f0(before.realMass)} → <b class="up">${f0(after.realMass)} kg</b></span><span>Bite/strike</span><span>${f0(before.realBite)} → <b class="up">${f0(after.realBite)} N</b></span><span>Speed</span><span>${Math.round(before.realSpd)} → <b class="up">${Math.round(after.realSpd)} km/h</b></span><span>Game HP</span><span>${before.maxhp} → <b class="up">${after.maxhp}</b></span></div></div><button class="btn" id="bOk">OK</button>`;
+  setTimeout(()=>{const i=$('#gimg'); if(i)i.style.transform=`scale(${sc[g.to]})`},60); window.LE.grown=g;
+  $('#bOk').onclick=()=>{ ups.shift(); ups.length?grow(ups,done):done() }; }
+// ---- Leaf Park (habitats earn from visitors) ----
+function park(){ show('park'); const hs=Object.keys(D.HABITATS);
+  $('#s-park').innerHTML=`<div class="top"><button class="btn alt" style="${btnS}" id="bBack">◀ Back</button><span class="coin">🪙 <span id="coinv">${S.coins}</span></span></div><h2>🏞 Leaf Park</h2><p class="sub">Visitors pay to see your animals in their habitats. Fights are held in the Colosseum.</p>
+  <div class="card"><div class="top"><span>🎟 <b id="rate">${totalRate()}</b> coins/min · ~${Math.round(totalRate()*0.7)} visitors/min</span><span>Till: <b id="tillv">${Math.floor(S.till)}</b> / ${Math.floor(tillCap())}</span></div><button class="btn green" id="bCollect" style="min-height:50px;margin:4px 0 0">💰 COLLECT</button></div>
+  ${hs.map(h=>{ const L=hl(h), an=housed(h), all=S.zoo.filter(a=>SP[a.id].hab===h); const c=L?upCost(L):buildCost(); return `<div class="hab" style="background-image:url(assets/hab/${h}.webp)"><h3>${D.HABITATS[h].n} ${L?'· Lv'+L+' '+'★'.repeat(L):'· not built'}</h3>
+   <div>${L?`<span class="chip ok">${habRate(h)} coins/min</span><span class="chip">holds ${1+L}</span>`:'<span class="chip">no visitors yet</span>'}</div>
+   <div>${an.map(a=>`<span class="an"><img src="${thumb(a.id)}">${aName(a)}<br>${perMin(a,L)}/min</span>`).join('')}${all.length>an.length?`<span class="chip hot">${all.length-an.length} no room</span>`:''}</div>
+   ${L>=HMAX?'<div class="chip gold">MAX</div>':`<button class="btn ${S.coins>=c?'':'alt'}" data-h="${h}" ${S.coins>=c?'':'disabled'} style="min-height:46px;font-size:15px;margin:6px 0 0">${L?'Upgrade':'Build'} · 🪙${c}</button>`}</div>` }).join('')}`;
+  $('#bBack').onclick=hub; $('#bCollect').onclick=()=>{ AU.init(); const n=collect(); if(n){AU.cheer(0.3)} park() };
+  $$('#s-park [data-h]').forEach(b=>b.onclick=()=>{ AU.init(); if(build(b.dataset.h)){AU.ui(); park()} }); }
+// ---- market / breeding ----
+function market(){ show('market'); const ids=Object.keys(SP).filter(id=>!SP[id].hybrid).sort((a,b)=>price(a)-price(b));
+  const adult=(id)=>S.zoo.some(a=>a.id===id&&E.stageOf(a.lvl)>=2);
+  const canBreed=adult('lion')&&adult('tiger');
+  $('#s-market').innerHTML=`<div class="top"><button class="btn alt" style="${btnS}" id="bBack">◀ Back</button><span class="coin">🪙 <span id="coinv">${S.coins}</span></span></div><h2>🛒 Animal market</h2><p class="sub">Buy cubs, or earn a free one by beating that species twice in the Colosseum. Each species needs its habitat built in Leaf Park.</p>
+  <div class="card"><b>🧬 Breeding den</b><div class="note" style="text-align:left">Needs an adult (or older) lion and tiger. Hybrids are rare in captivity and are game-only extras. 🪙500 each.</div><div class="row"><button class="btn ${canBreed&&S.coins>=500?'':'alt'}" data-b="liger" ${canBreed&&S.coins>=500?'':'disabled'} style="min-height:46px;font-size:15px">Liger cub</button><button class="btn ${canBreed&&S.coins>=500?'':'alt'}" data-b="tigon" ${canBreed&&S.coins>=500?'':'disabled'} style="min-height:46px;font-size:15px">Tigon cub</button></div></div>
+  <div class="cards">${ids.map(id=>{const s=SP[id],p=price(id),free=(S.beaten[id]||0)>=2&&!S.free[id],hb=hl(s.hab)>0,ok=hb&&(free||S.coins>=p);const own=S.zoo.filter(a=>a.id===id).length;
+   return `<div class="card ac"><img src="${thumb(id)}"><div class="t"><b>${s.n}</b>${own?` <span class="chip ok">own ${own}</span>`:''}<br><span class="chip">adult ${f0(s.mass)} kg</span><span class="chip">${s.spd} km/h</span><span class="chip">~${f0(s.bite)} N</span><span class="chip ${hb?'':'hot'}">${D.HABITATS[s.hab].n}${hb?'':' (build first)'}</span>
+   <button class="btn ${free?'green':ok?'':'alt'}" data-id="${id}" ${ok?'':'disabled'} style="min-height:44px;font-size:15px;margin:6px 0 0">${free?'FREE (earned) · claim cub':'Buy cub · 🪙'+p}</button></div></div>`}).join('')}</div>`;
+  $('#bBack').onclick=hub;
+  $$('#s-market [data-id]').forEach(b=>b.onclick=()=>{ const id=b.dataset.id; if(buyAnimal(id)){AU.init();AU.ui();market()} });
+  $$('#s-market [data-b]').forEach(b=>b.onclick=()=>{ if(breed(b.dataset.b)){AU.init();AU.evolve();market()} }); }
+function buyAnimal(id){ const free=(S.beaten[id]||0)>=2&&!S.free[id]; const p=price(id); if(hl(SP[id].hab)<1)return false; if(!free&&S.coins<p)return false; if(free)S.free[id]=1; else S.coins-=p; newAnimal(id); save(); return true }
+function breed(id){ if(S.coins<500)return false; const ad=(x)=>S.zoo.some(a=>a.id===x&&E.stageOf(a.lvl)>=2); if(!ad('lion')||!ad('tiger'))return false; S.coins-=500; newAnimal(id); save(); return true }
+// ---- opponents (teams, same size as yours) ----
+const CAND=[]; Object.keys(SP).filter(id=>!SP[id].hybrid).forEach(id=>[0,1,2,3].forEach(st=>{ const lvl=STG[st].lvl+(st<3?1:2); CAND.push({id,st,mod:{stage:st,lvl,tr:{p:0,s:0,d:0}},pw:E.derive(id,{stage:st,lvl}).power}) }));
+const myPow=()=>{ const t=myTeam(); return t.reduce((s,m)=>s+E.derive(m.id,m.mod).power,0)/Math.max(1,t.length) };
+function pickContenders(){ const me=myPow(), n=Math.max(1,S.team.length); const rnd=E.mulberry(S.bouts*131+7); const res=[],used=new Set();
+  (S.bouts<3?[0.6,0.95,1.6]:[0.8,1.2,1.9]).forEach(t=>{ const team=[]; const usedHere=new Set(); for(let k=0;k<n;k++){ let best=null,bs=1e9; CAND.forEach(c=>{ if(usedHere.has(c.id)||(res.length&&used.has(c.id)&&k===0))return; const sc=Math.abs(Math.log(c.pw/(me*t)))+rnd()*0.25; if(sc<bs){bs=sc;best=c} }); usedHere.add(best.id); team.push({id:best.id,mod:best.mod}); } team.forEach(m=>used.add(m.id)); res.push(team) });
   return res; }
+const teamPow=(t)=>t.reduce((s,m)=>s+E.derive(m.id,m.mod).power,0)/t.length;
 const oppSk=()=>clamp(0.28+0.02*S.bouts,0.28,0.72);
-function pickOpp(){ show('pick'); const me=myPower(); const list=pickContenders();
-  $('#s-pick').innerHTML=`<div class="top"><button class="btn alt" style="width:auto;min-height:40px;margin:0;font-size:15px;padding:0 14px" id="bBack">◀ Back</button><span class="coin">🪙 ${S.coins}</span></div><h2>Choose your opponent</h2><p class="sub">Real wild animals. Every bout is in the Colosseum.</p><div class="cards">${list.map(id=>{const s=SP[id],r=E.derive(id).power/me,tag=r>1.25?'<span class="chip hot">UNDERDOG · big reward</span>':r<0.85?'<span class="chip ok">Warm-up</span>':'<span class="chip gold">Even match</span>';
-   return `<div class="card ac" data-id="${id}"><img src="${thumb(id)}"><div class="t"><b>${s.n}</b> ${tag}<br><span class="chip">${f0(s.mass)} kg</span><span class="chip">${s.spd} km/h</span><span class="chip">~${f0(s.bite)} N</span><span class="chip">${D.HABITATS[s.hab].n}</span><br>Power ${E.derive(id).power} vs your ${me} · ${D.SPECIALS[s.sp].label}</div></div>`}).join('')}</div>`;
-  $('#bBack').onclick=hub; $$('#s-pick .ac').forEach(a=>a.onclick=()=>{ AU.ui(); oppSkill=oppSk()+(E.derive(a.dataset.id).power/me>1.25?0.06:0); curOpp=a.dataset.id; bet=0; betOdds=0; if(teen())betScreen(); else startFight(curOpp) }); }
+const tname=(m)=>`${STG[m.mod.stage].n} ${SP[m.id].n}`;
+function pickOpp(){ show('pick'); if(!S.team.length){return zoo()} const me=myPow(); const list=pickContenders(); window.LE.contenders=list;
+  $('#s-pick').innerHTML=`<div class="top"><button class="btn alt" style="${btnS}" id="bBack">◀ Back</button><span class="coin">🪙 ${S.coins}</span></div><h2>Choose your opponent</h2><p class="sub">Your team of ${S.team.length} enters the Colosseum. Real wild animals, same arena every time.</p><div class="cards">${list.map((t,i)=>{const r=teamPow(t)/me,tag=r>1.3?'<span class="chip hot">UNDERDOG · big reward</span>':r<0.9?'<span class="chip ok">Warm-up</span>':'<span class="chip gold">Even match</span>';
+   return `<div class="card ac" data-i="${i}"><div style="display:flex;flex-direction:column;align-items:center">${t.map(m=>`<img src="${thumb(m.id)}" style="width:70px;height:46px">`).join('')}</div><div class="t">${tag}<br><b>${t.map(tname).join(' + ')}</b><br>Power ${Math.round(teamPow(t))} avg vs your ${Math.round(me)} avg</div></div>`}).join('')}</div>`;
+  $('#bBack').onclick=hub; $$('#s-pick .ac').forEach(a=>a.onclick=()=>{ AU.ui(); const t=list[+a.dataset.i]; oppSkill=clamp(oppSk()+[0,0.2,0.4][+a.dataset.i],0.28,0.8); curTeam=t; bet=0; betOdds=0; if(teen())betScreen(); else startFight(t) }); }
 // ---- betting (13+, coins only; odds from simulation; house edge keeps EV below even) ----
 const BET_MIN=10, BET_MAX=200, EDGE=0.88;
-function computeOdds(id){ const p=E.winProb(S.animal,id,50,0.85,oppSkill,S.bouts+3); const pu=Math.min(0.97,p+0.04); const mult=Math.min(9,EDGE/pu); return {p,pu,mult:Math.round(mult*100)/100,open:pu<=0.85&&mult>=1.03}; }
+function computeOdds(){ const p=E.winProb(myTeam(),curTeam,40,0.85,oppSkill,S.bouts+3); const pu=Math.min(0.97,p+0.04); const mult=Math.min(9,EDGE/pu); return {p,pu,mult:Math.round(mult*100)/100,open:pu<=0.85&&mult>=1.03}; }
 function betScreen(){ show('bet'); $('#s-bet').innerHTML='<h2>Reading the odds…</h2><p class="sub">Simulating this matchup</p>';
-  setTimeout(()=>{ const o=computeOdds(curOpp); betOdds=o.mult; const a=SP[S.animal],b=SP[curOpp]; const maxB=Math.min(BET_MAX,S.coins); let amt=Math.min(maxB,Math.max(BET_MIN,Math.min(50,maxB)));
-   const canBet=o.open&&S.coins>=BET_MIN;
+  setTimeout(()=>{ const o=computeOdds(); betOdds=o.mult; const me=myTeam(); const maxB=Math.min(BET_MAX,S.coins); let amt=Math.min(maxB,Math.max(BET_MIN,Math.min(50,maxB)));
+   const canBet=o.open&&S.coins>=BET_MIN; const side=(t)=>`<div>${t.map(m=>`<img src="${thumb(m.id)}" style="width:60px;height:38px;object-fit:contain">`).join('')}<br><small>${t.map(m=>SP[m.id].n).join(' + ')}</small></div>`;
    $('#s-bet').innerHTML=`<div class="top"><span>🪙 Coins ${S.coins}</span><span class="chip gold">13+ · coins only, no real money</span></div><h2>🏛 Crowd betting</h2>
-   <div class="card"><div class="row" style="align-items:center;text-align:center"><div><img src="${thumb(S.animal)}" style="width:100%;height:60px;object-fit:contain"><b>${a.n}</b><br><small>${f0(a.mass)} kg · ${a.spd} km/h</small></div><div style="flex:0 0 28px;font-weight:900">VS</div><div><img src="${thumb(curOpp)}" style="width:100%;height:60px;object-fit:contain"><b>${b.n}</b><br><small>${f0(b.mass)} kg · ${b.spd} km/h</small></div></div></div>
-   <div class="card"><div class="note">Odds are based on both animals' stats (simulated bouts).</div><div class="odds">${canBet?'Bet on yourself · pays ×'+o.mult.toFixed(2):'No bet offered'}</div><div class="note">${canBet?`Estimated win chance ${Math.round(o.pu*100)}% · house edge 12% (expected return is below even)`:(S.coins<BET_MIN?'You need at least '+BET_MIN+' coins.':'Odds are too short to bet on this one.')}</div>
-   ${canBet?`<div class="row" style="align-items:center;margin-top:8px"><button class="btn alt" id="bMinus" style="margin:0">−10</button><div class="odds" id="bAmt" style="flex:1.2">${amt}</div><button class="btn alt" id="bPlus" style="margin:0">+10</button></div><div class="row"><button class="btn alt" id="bMin">MIN ${BET_MIN}</button><button class="btn alt" id="bMax">MAX ${maxB}</button></div><div class="note">Min ${BET_MIN} · Max ${BET_MAX} coins. Win: +${Math.round(amt*(o.mult-1))} · Lose: −${amt}</div>`:''}</div>
+   <div class="card"><div class="row" style="align-items:center;text-align:center">${side(me)}<div style="flex:0 0 28px;font-weight:900">VS</div>${side(curTeam)}</div></div>
+   <div class="card"><div class="note">Odds are based on both teams' stats (simulated bouts).</div><div class="odds">${canBet?'Bet on your team · pays ×'+o.mult.toFixed(2):'No bet offered'}</div><div class="note">${canBet?`Estimated win chance ${Math.round(o.pu*100)}% · house edge 12% (expected return is below even)`:(S.coins<BET_MIN?'You need at least '+BET_MIN+' coins.':'Odds are too short to bet on this one.')}</div>
+   ${canBet?`<div class="row" style="align-items:center;margin-top:8px"><button class="btn alt" id="bMinus" style="margin:0">−10</button><div class="odds" id="bAmt" style="flex:1.2">${amt}</div><button class="btn alt" id="bPlus" style="margin:0">+10</button></div><div class="row"><button class="btn alt" id="bMin">MIN ${BET_MIN}</button><button class="btn alt" id="bMax">MAX ${maxB}</button></div><div class="note" id="bNote">Min ${BET_MIN} · Max ${BET_MAX} coins. Win: +${Math.round(amt*(o.mult-1))} · Lose: −${amt}</div>`:''}</div>
    ${canBet?'<button class="btn green" id="bPlace">PLACE BET &amp; FIGHT</button>':''}<button class="btn ${canBet?'alt':''}" id="bNo">${canBet?'No bet, just fight':'FIGHT'}</button><button class="btn alt" id="bBk">◀ Back</button>`;
-   const upd=()=>{ $('#bAmt').textContent=amt; $('#bAmt').nextElementSibling; const n=$('#s-bet .note:last-of-type'); };
-   const setAmt=(v)=>{amt=clamp(Math.round(v/10)*10,BET_MIN,Math.max(BET_MIN,maxB)); if(maxB<BET_MIN)amt=0; $('#bAmt').textContent=amt; const nt=$$('#s-bet .note'); nt[nt.length-1].textContent=`Min ${BET_MIN} · Max ${BET_MAX} coins. Win: +${Math.round(amt*(o.mult-1))} · Lose: −${amt}`};
-   if(canBet){ $('#bMinus').onclick=()=>{AU.ui();setAmt(amt-10)}; $('#bPlus').onclick=()=>{AU.ui();setAmt(amt+10)}; $('#bMin').onclick=()=>setAmt(BET_MIN); $('#bMax').onclick=()=>setAmt(maxB); $('#bPlace').onclick=()=>{ bet=amt; S.coins-=amt; save(); startFight(curOpp) } }
-   $('#bNo').onclick=()=>{bet=0;startFight(curOpp)}; $('#bBk').onclick=pickOpp; },30); }
+   const setAmt=(v)=>{amt=clamp(Math.round(v/10)*10,BET_MIN,Math.max(BET_MIN,maxB)); $('#bAmt').textContent=amt; $('#bNote').textContent=`Min ${BET_MIN} · Max ${BET_MAX} coins. Win: +${Math.round(amt*(o.mult-1))} · Lose: −${amt}`};
+   if(canBet){ $('#bMinus').onclick=()=>{AU.ui();setAmt(amt-10)}; $('#bPlus').onclick=()=>{AU.ui();setAmt(amt+10)}; $('#bMin').onclick=()=>setAmt(BET_MIN); $('#bMax').onclick=()=>setAmt(maxB); $('#bPlace').onclick=()=>{ bet=amt; S.coins-=amt; save(); startFight(curTeam) } }
+   $('#bNo').onclick=()=>{bet=0;startFight(curTeam)}; $('#bBk').onclick=pickOpp; },30); }
 // ---- result ----
-function endFight(){ running=false; const win=M.winner==='L'; const me=E.derive(S.animal), op=E.derive(curOpp); const ratio=clamp(op.power/me.power,0.5,2.2);
-  let dna=Math.round((26+28*ratio)*(win?1:0.3)); let coins=win?Math.round(20+10*ratio):5; const flawless=win&&M.A.hp>=M.A.maxhp*0.85; if(flawless)dna=Math.round(dna*1.15);
+function endFight(){ running=false; const win=M.winner==='L'; const me=myPow(), op=teamPow(curTeam); const ratio=clamp(op/me,0.5,2.2);
+  let coins=win?Math.round((30+18*ratio)*Math.max(1,curTeam.length*0.8)):8; const xpBase=win?Math.round(38*ratio+10):14;
   let betTxt=''; if(bet>0){ if(win){const g=Math.round(bet*betOdds); S.coins+=g; betTxt=`Bet won: +${g-bet} coins`} else betTxt=`Bet lost: −${bet} coins` }
-  S.dna+=dna; S.coins+=coins; S.bouts++; if(win){S.wins++;S.streak++;S.bestStreak=Math.max(S.bestStreak,S.streak);S.beaten[curOpp]=(S.beaten[curOpp]||0)+1; S.seen[curOpp]=1} else {S.losses++;S.streak=0}
-  save(); const how=M.how==='time'?'Won on points':'Knocked out';
-  show('result'); const st=M.A.stats;
-  $('#s-result').innerHTML=`<div class="bigtxt ${win?'win':'lose'}">${win?'VICTORY!':'DEFEATED'}</div><div class="hero" style="height:150px"><img src="${thumb(win?S.animal:curOpp,win?'attack':'idle')}"></div>
-  <p class="sub">${win?`${SP[curOpp].n} flees the sand. ${how}.`:`${SP[S.animal].n} limps away to rest. Nobody is hurt in Leaf Evolve.`}</p>
-  <div class="card"><div class="top"><span>🧬 DNA</span><b>+${dna}${flawless?' (flawless bonus)':''}</b></div><div class="top"><span>🪙 Coins</span><b>+${coins}</b></div>${betTxt?`<div class="top"><span>🎟 Bet</span><b>${betTxt}</b></div>`:''}<div class="note" style="text-align:left">Dealt ${Math.round(st.dealt)} · taken ${Math.round(st.taken)} · parries ${st.parries} · dodges ${st.dodges}</div></div>
-  ${canEvolve()?'<button class="btn green" id="bE">🧬 EVOLVE NOW</button>':''}<button class="btn" id="bAgain">⚔ FIGHT AGAIN</button><button class="btn alt" id="bHub">Back to den</button>`;
-  $('#bE')&&($('#bE').onclick=evolveScreen); $('#bAgain').onclick=pickOpp; $('#bHub').onclick=hub; }
-// ---- evolve ----
-function cmp(a,b,key,fmt){ const d=SP[b][key]-SP[a][key]; return `<span class="${d>0?'up':d<0?'dn':''}">${fmt?fmt(SP[b][key]):SP[b][key]} ${d>0?'▲':d<0?'▼':''}</span>` }
-function pathText(){ const L=D.LINES[S.line]; const out=[]; const walk=(id,depth)=>{ const nxt=L.evo[id]||[]; out.push({id,depth}); nxt.forEach(n=>walk(n[0],depth+1)) }; walk(L.start,0); return out.map(o=>`<div style="padding-left:${o.depth*14}px;${o.id===S.animal?'color:#ffd98a;font-weight:800':S.path.includes(o.id)?'':'opacity:.65'}">${o.depth?'↳ ':''}${SP[o.id].n}${o.id===S.animal?' ◀ you':''}</div>`).join('') }
-function evolveScreen(){ show('evolve'); const opts=D.LINES[S.line].evo[S.animal]||[];
-  $('#s-evolve').innerHTML=`<div class="top"><button class="btn alt" style="width:auto;min-height:40px;margin:0;font-size:15px;padding:0 14px" id="bBack">◀ Back</button><span>🧬 DNA ${S.dna}</span></div><h2>Evolve ${SP[S.animal].n}</h2>
-  <div class="hero" style="height:140px"><img src="${thumb(S.animal)}"></div>
-  ${opts.length?`<p class="sub">Choose how your animal grows.</p><div class="evo">${opts.map(([id,cost])=>{const ok=S.dna>=cost;return `<div class="card" ><img src="${thumb(id)}"><b>${SP[id].n}</b><div class="stats" style="text-align:left"><span>Weight</span>${cmp(S.animal,id,'mass',f0)}<span>Speed</span>${cmp(S.animal,id,'spd')}<span>Bite</span>${cmp(S.animal,id,'bite',f0)}<span>Armor</span>${cmp(S.animal,id,'arm')}<span>Special</span><span>${D.SPECIALS[SP[id].sp].label}</span></div><button class="btn ${ok?'green':'alt'}" data-id="${id}" data-c="${cost}" ${ok?'':'disabled'} style="min-height:48px;font-size:16px">${ok?'EVOLVE':'Need '+cost+' DNA'}</button></div>`}).join('')}</div>`:'<p class="sub">Fully evolved! Keep fighting for coins and glory.</p>'}
-  <div class="card"><b>Evolution line: ${D.LINES[S.line].n}</b>${pathText()}</div>`;
-  $('#bBack').onclick=hub; $$('#s-evolve button[data-id]').forEach(b=>b.onclick=()=>{ if(b.disabled)return; doEvolve(b.dataset.id,+b.dataset.c) }); }
-function doEvolve(id,cost){ AU.init(); AU.evolve(); const old=S.animal; S.dna-=cost; S.animal=id; S.seen[id]=1; S.path.push(id); save(); const fl=$('#flash'); fl.classList.add('on'); setTimeout(()=>fl.classList.remove('on'),60);
-  show('evolve'); $('#s-evolve').innerHTML=`<h2>${SP[old].n} evolved into</h2><div class="hero glow" style="height:230px"><img src="${thumb(id)}"></div><div class="bigtxt win" style="font-size:34px">${SP[id].n}!</div><div class="card">${statsHTML(id)}<div class="note" style="text-align:left">${SP[id].fact}</div></div><button class="btn" id="bOk">⚔ Back to the den</button>`; $('#bOk').onclick=hub; window.LE.evolved=id; }
-// ---- park (habitats are for housing animals only; fights are all in the Colosseum) ----
-function park(){ show('park'); const hs=Object.keys(D.HABITATS); const mine=new Set([...Object.keys(S.seen),...Object.keys(S.beaten)]);
-  $('#s-park').innerHTML=`<div class="top"><button class="btn alt" style="width:auto;min-height:40px;margin:0;font-size:15px;padding:0 14px" id="bBack">◀ Back</button><span>${mine.size}/${Object.keys(SP).length} animals</span></div><h2>🌿 Leaf Park</h2><p class="sub">Animals you've been or beaten live here in their habitats. All fights happen in the Colosseum.</p>
-  ${hs.map(h=>{ const ids=Object.keys(SP).filter(id=>SP[id].hab===h&&!['wolfpup','youngcroc','alphawolf','swiftwolf'].includes(id)); return `<div class="hab" style="background-image:url(assets/hab/${h}.webp)"><h3>${D.HABITATS[h].n}</h3>${ids.map(id=>`<span class="an ${mine.has(id)?'':'q'}"><img src="${thumb(id)}">${mine.has(id)?SP[id].n:'???'}</span>`).join('')}</div>`}).join('')}`;
-  $('#bBack').onclick=hub; }
+  const ups=[]; const rows=[]; M.teamL.filter(f=>f.fought).forEach(f=>{ const a=getA(f.uid); if(!a)return; const x=Math.round(xpBase*(f.dead?0.8:1)); const l0=a.lvl; addXP(a,x,ups); rows.push(`<div class="top"><span>${aName(a)}</span><b>+${x} XP${a.lvl>l0?' · LEVEL '+a.lvl+'!':''}</b></div>`) });
+  S.coins+=coins; S.bouts++; if(win){S.wins++;S.streak++; curTeam.forEach(m=>{S.beaten[m.id]=(S.beaten[m.id]||0)+1})} else {S.losses++;S.streak=0}
+  const freeNow=win?curTeam.filter(m=>S.beaten[m.id]===2&&!S.free[m.id]).map(m=>SP[m.id].n):[]; save(); const st=M.A.stats;
+  show('result');
+  $('#s-result').innerHTML=`<div class="bigtxt ${win?'win':'lose'}">${win?'VICTORY!':'DEFEATED'}</div><div class="hero" style="height:150px"><img src="${thumb(win?M.teamL.find(f=>!f.dead).id:curTeam[0].id,win?'attack':'idle')}"></div>
+  <p class="sub">${win?`The crowd roars! The rival team flees the sand.`:`Your team limps away to rest. Nobody is hurt in Leaf Evolve.`}</p>
+  <div class="card">${rows.join('')}<div class="top"><span>🪙 Coins</span><b>+${coins}</b></div>${betTxt?`<div class="top"><span>🎟 Bet</span><b>${betTxt}</b></div>`:''}${freeNow.length?`<div class="note" style="color:#9bd36a">Earned a free ${freeNow.join(' / ')} cub! Claim it in the Market.</div>`:''}</div>
+  ${ups.length?'<button class="btn green" id="bGrow">🎉 SEE GROWTH</button>':''}<button class="btn" id="bAgain">⚔ FIGHT AGAIN</button><button class="btn alt" id="bHub">Back to HQ</button>`;
+  $('#bGrow')&&($('#bGrow').onclick=()=>grow(ups,hub)); $('#bAgain').onclick=pickOpp; $('#bHub').onclick=hub; }
 // ================= BOOT =================
-window.LE={S:()=>S,save,show,hub,title,startFight,pickOpp,betScreen,evolveScreen,park,addDNA:(n)=>{S.dna+=n;save()},screen:'title',match:null,reset:()=>{S=blank();save()},engine:E,data:D,doEvolve,canEvolve,get running(){return running},setAutoplay(v){window.LE_AUTOPLAY=v}};
+function resetAll(){ S=blank(); save() }
+window.LE={odds:(t,sk)=>{curTeam=t;oppSkill=sk||0.4;return computeOdds()},S:()=>S,save,show,hub,title,startFight,pickOpp,betScreen,park,zoo,market,animal,starter,feed,train,tick,collect,build,buyAnimal,breed,newAnimal,toggleTeam,addXP,derive:E.derive,reset:resetAll,engine:E,data:D,screen:'title',match:null,totalRate,housed,price,setAutoplay(v){window.LE_AUTOPLAY=v},grow:(u,from,to)=>grow([{u,from,to}],hub),get running(){return running}};
 bind(); title();
-if('serviceWorker' in navigator&&false){}
 })();
