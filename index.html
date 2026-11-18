@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1b130b">
+<title>Leaf Evolve | leafactivity.com</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ctext y=%2727%27 font-size=%2726%27%3E%F0%9F%8D%83%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css?v=1">
+</head><body>
+<div id="app">
+  <section id="s-title" class="screen on"></section>
+  <section id="s-starter" class="screen"></section>
+  <section id="s-hub" class="screen"></section>
+  <section id="s-pick" class="screen"></section>
+  <section id="s-bet" class="screen"></section>
+  <section id="s-result" class="screen"></section>
+  <section id="s-evolve" class="screen"></section>
+  <section id="s-park" class="screen"></section>
+  <section id="s-fight" class="screen">
+    <canvas id="cv"></canvas>
+    <div id="hud">
+      <div class="hb" id="hbL"><div class="nm"></div><div class="bar hp"><i></i></div><div class="bar st"><i></i></div><div class="stt"></div></div>
+      <div id="clock">80</div>
+      <div class="hb r" id="hbR"><div class="nm"></div><div class="bar hp"><i></i></div><div class="bar st"><i></i></div><div class="stt"></div></div>
+      <button id="mute" aria-label="Sound">🔊</button>
+    </div>
+    <div id="grip"><div id="gripT"></div><div class="gbar"><i id="gMeter"></i></div><div class="gzone" id="gZone"><b id="gMark"></b></div></div>
+    <div id="banner"></div>
+    <div id="ctl">
+      <div class="pad l">
+        <button data-a="left" class="b mv">◀</button><button data-a="right" class="b mv">▶</button>
+        <button data-a="block" class="b blk">BLOCK<small>hold · tap to parry</small></button>
+      </div>
+      <div class="pad r">
+        <button data-a="bite" class="b atk">BITE</button><button data-a="claw" class="b atk" id="bClaw">CLAW</button>
+        <button data-a="charge" class="b atk">CHARGE</button><button data-a="sp" class="b spc" id="bSp">SPECIAL</button>
+        <button data-a="dodge" class="b dg">DODGE</button>
+      </div>
+    </div>
+  </section>
+  <div id="flash"></div>
+</div>
+<script src="js/data.js?v=1"></script>
+<script src="js/engine.js?v=1"></script>
+<script src="js/game.js?v=1"></script>
+</body></html>
