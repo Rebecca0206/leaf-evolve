@@ -9,3 +9,6 @@ Phone-first realistic animal park-and-fight game by leafactivity.com. Play: http
 - Tests: `python3 -m http.server 8765` then `node test/e2e.js` (Playwright, both phone viewports).
 
 Credits: animal pose art and the arena backdrop are original generated LeafFauna images from the leafactivity animal encyclopedia. The liger and tigon art is a procedural re-tint of the lion and tiger poses. Real-life figures are approximate.
+
+## v4 graphics upgrade
+Painted crowd (3 parallax layers, bobbing strips, kid-safe variant without slips), real cub/juvenile art for tiger, lion, wolf and grizzly (other species keep scaled adult art), springy squash/stretch + breathing + run bob, lunge trails, contact shadows, sun shafts + dust motes + depth haze, impact rings, big-hit punch-in zoom, restyled HUD/buttons, painted habitat cards and park hero. Particles capped at 90. Art is original generated imagery (leafactivity.com).

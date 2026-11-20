@@ -64,6 +64,10 @@ const out=[];const ok=(c,m)=>{out.push((c?'PASS ':'FAIL ')+m);if(!c)process.exit
     const c1=(await S()).coins; await p.click('.screen.on #bPlace'); await p.waitForTimeout(500); ok((await S()).coins<c1,`${n}: bet deducted from in-game coins`);
     await p.waitForTimeout(3500); await p.screenshot({path:`shots/fight-13plus-${n}.png`});
     await p.waitForFunction(()=>LE.screen==='result',null,{timeout:200000}); ok(true,`${n}: bet fight settled`); }
+  ok(await p.evaluate(()=>LE.artOf('tiger',0)==='tiger_cub'&&LE.artOf('lion',1)==='lion_juv'&&LE.artOf('tiger',2)==='tiger'),`${n}: stage-aware art (tiger cub, lion juvenile, adult fallback)`);
+  ok(await p.evaluate(()=>Promise.all(['tiger_cub','tiger_juv','lion_cub','lion_juv','wolf_cub','grizzly_cub'].map(a=>new Promise(r=>{const i=new Image();i.onload=()=>r(i.naturalWidth>0);i.onerror=()=>r(false);i.src='assets/a/'+a+'/attack.webp'}))).then(a=>a.every(Boolean))),`${n}: cub/juvenile art files load`);
+  ok(await p.evaluate(()=>LE.crowdReady()),`${n}: painted crowd layers load`);
+  ok(await p.evaluate(()=>LE.particles())<=90,`${n}: particle cap holds (<=90)`);
   ok(errs.length===0,`${n}: no console errors${errs.length?' -> '+errs.join(' | '):''}`);
   await ctx.close();
  }

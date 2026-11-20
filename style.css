@@ -86,6 +86,36 @@ h2{margin:4px 0 8px;font-size:22px;text-align:center;color:#ffd98a}
 .gzone b{position:absolute;top:-3px;width:6px;height:20px;background:#fff;border-radius:3px;box-shadow:0 0 6px #fff}
 #banner{position:absolute;left:0;right:0;top:34%;text-align:center;font-size:40px;font-weight:900;color:#fff;text-shadow:0 3px 0 #000,0 0 20px #000;z-index:6;pointer-events:none;opacity:0;transition:opacity .3s}
 #banner.on{opacity:1}
+/* ---------- v4 graphics: HUD, big buttons, painted park ---------- */
+#hud{background:linear-gradient(#000e,#000a 70%,#0000);border-bottom:1px solid #ffd98a33;box-shadow:0 4px 14px #0008}
+.hb .nm{font-size:14px;letter-spacing:.3px;text-shadow:0 2px 3px #000}
+.bar{height:14px;border-radius:8px;border:1px solid #ffffff55;box-shadow:inset 0 2px 4px #000a,0 1px 0 #fff2;position:relative}
+.bar::after{content:"";position:absolute;inset:0 0 50% 0;background:linear-gradient(#fff5,#fff0);border-radius:8px 8px 0 0;pointer-events:none}
+.bar.hp i{background:repeating-linear-gradient(90deg,#0000 0 17px,#0003 17px 18px),linear-gradient(#8bf08b,#2e9a3a);transition:width .25s}
+.bar.st{height:8px}
+.stt{font-weight:700;text-shadow:0 1px 2px #000}
+#clock{width:50px;height:50px;line-height:46px;border-radius:50%;font-size:24px;background:radial-gradient(#5a3d18,#2a1a08);border:3px solid #ffd98a;box-shadow:0 0 0 2px #000a,0 0 14px #ffcf6a66,inset 0 0 8px #000;color:#ffe9b0;text-shadow:0 2px 2px #000}
+#mute{border:2px solid #ffd98a88;background:radial-gradient(#4a3318,#1d130a)}
+#ctl{background:linear-gradient(#2a1c0e,#0c0804);border-top:2px solid #ffd98a55;box-shadow:0 -8px 20px #000a}
+.b{border:2px solid #0006;font-size:21px;letter-spacing:.5px;text-shadow:0 2px 0 #0007;box-shadow:inset 0 2px 0 #fff6,inset 0 -8px 14px #0003,0 6px 0 #000a,0 9px 12px #0006;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.b::before{font-size:22px;line-height:1;filter:drop-shadow(0 2px 0 #0006)}
+.b[data-a=bite]::before{content:"🦷"}.b[data-a=claw]::before{content:"🐾"}.b[data-a=charge]::before{content:"💨"}.b[data-a=sp]::before{content:"⚡"}
+.b[data-a=dodge]::before{content:"↯"}.b[data-a=block]::before{content:"🛡"}.b[data-a=tag]::before{content:"⇄"}
+.b.mv::before{content:none}
+.b.p,.b:active{transform:translateY(5px);box-shadow:inset 0 2px 0 #fff6,inset 0 -8px 14px #0003,0 1px 0 #000a;filter:brightness(1.2)}
+#banner{font-size:46px;letter-spacing:2px;background:linear-gradient(90deg,#0000,#000a 20%,#000a 80%,#0000);padding:6px 0}
+/* park */
+#s-park{background:linear-gradient(#120b05d8,#120b05f2 420px),url(assets/park-hero.webp) center top/cover no-repeat,#0e0905}
+.phero{position:relative;margin:2px -14px 10px;height:170px;background:linear-gradient(#0000 30%,#120b05f0),url(assets/park-hero.webp) center/cover;display:flex;align-items:flex-end;justify-content:center;border-bottom:2px solid #ffd98a55;box-shadow:0 8px 20px #0008}
+.phero h2{font-size:30px;margin:0;text-shadow:0 3px 0 #3b2308,0 0 16px #000}
+.phero .sub{margin:2px 14px 8px;text-shadow:0 1px 3px #000;opacity:1}
+.hab{min-height:132px;border-radius:16px;border:2px solid #ffd98a55;box-shadow:0 6px 16px #0009;padding:10px}
+.hab::before{background:linear-gradient(90deg,#000b 0%,#0005 55%,#0001 100%),linear-gradient(#0000 55%,#000b)}
+.hab h3{font-size:19px;text-shadow:0 2px 3px #000}
+.hab .an{background:#0006;border-radius:10px;backdrop-filter:blur(2px);padding:3px 2px;width:70px}
+.hab .an img{width:64px;height:48px;filter:drop-shadow(0 3px 3px #000a)}
+.hab .btn{border-radius:12px}
+.hero{border:2px solid #ffd98a55}
 @media (orientation:landscape) and (max-height:520px){
   #cv{top:0;height:100%}
   #hud{height:46px;background:linear-gradient(#000b,#0000);padding:4px 10px}
